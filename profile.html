@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Candidate Profile — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="profile">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>Candidate studio</h1>
+      <p class="subtitle">Define your avatar, finances, and race tactics.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link active" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="signup-card">
+      <div class="panel-header">
+        <div>
+          <h2>Create your candidate</h2>
+          <p class="subtle">Sign up with your email, define your avatar, and lock in traits that influence race results.</p>
+        </div>
+        <div class="pill pill-warning">Progress saves locally</div>
+      </div>
+      <form id="signupForm">
+        <div class="form-grid">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required placeholder="you@example.com" />
+          </div>
+          <div>
+            <label for="name">Character name</label>
+            <input id="name" name="name" required placeholder="Avery Carson" />
+          </div>
+          <div>
+            <label for="state">Home state</label>
+            <select id="state" name="state" required></select>
+          </div>
+          <div>
+            <label for="party">Party</label>
+            <select id="party" name="party">
+              <option>Democrats</option>
+              <option>Republicans</option>
+              <option>Independents</option>
+            </select>
+          </div>
+          <div>
+            <label for="class">Economic class</label>
+            <select id="class" name="class">
+              <option value="poor">Poor (₡10,000 start)</option>
+              <option value="middle">Middle (₡100,000 start)</option>
+              <option value="rich">Rich (₡1,000,000 start)</option>
+            </select>
+          </div>
+          <div>
+            <label for="religion">Religion</label>
+            <select id="religion" name="religion">
+              <option>Secular</option>
+              <option>Christian</option>
+              <option>Jewish</option>
+              <option>Muslim</option>
+              <option>Hindu</option>
+              <option>Buddhist</option>
+            </select>
+          </div>
+          <div>
+            <label for="heritage">Heritage</label>
+            <select id="heritage" name="heritage">
+              <option>Latin American</option>
+              <option>African American</option>
+              <option>European</option>
+              <option>Asian</option>
+              <option>Indigenous</option>
+              <option>Middle Eastern</option>
+            </select>
+          </div>
+          <div>
+            <label for="image">Character image</label>
+            <input id="image" name="image" type="file" accept="image/*" />
+          </div>
+        </div>
+        <div class="form-footer">
+          <button type="submit">Save profile</button>
+          <div class="subtle">Economic class and traits influence primaries & general elections.</div>
+        </div>
+      </form>
+    </section>
+
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Profile</h2>
+          <p class="subtle">Track finances, political capital, and your narrative.</p>
+        </div>
+        <div class="badge" id="officeBadge">Unseated — no office yet</div>
+      </div>
+
+      <div class="profile-top">
+        <div class="avatar" id="avatarPreview">Upload an image</div>
+        <div>
+          <div class="flex" style="align-items: flex-start;">
+            <div>
+              <h3 id="profileName">No profile yet</h3>
+              <div class="tag-list" id="traitTags"></div>
+              <p class="subtle" id="profileState">Home state will appear here.</p>
+            </div>
+            <div class="card" style="min-width: 220px;">
+              <h4>Financial snapshot</h4>
+              <div class="stat"><span>Capital</span><strong id="capitalStat">₡0</strong></div>
+              <div class="stat"><span>Political capital</span><strong id="polCapitalStat">₱0</strong></div>
+              <div class="stat"><span>Capital / hr</span><strong id="capIncomeStat">₡0</strong></div>
+              <div class="stat"><span>Political / hr</span><strong id="polIncomeStat">₱0</strong></div>
+              <div class="inline-actions">
+                <button type="button" id="convertCapital">Convert 10% to political</button>
+                <button type="button" id="boostCapital">Improve capital income</button>
+                <button type="button" id="boostPol">Improve political income</button>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 0.85rem;">
+            <h4>Description</h4>
+            <div class="rich-editor">
+              <div class="editor-toolbar">
+                <button type="button" data-command="bold">Bold</button>
+                <button type="button" data-command="italic">Italic</button>
+                <button type="button" data-command="insertUnorderedList">Bullet</button>
+                <button type="button" data-command="insertOrderedList">Numbered</button>
+              </div>
+              <div id="bioEditor" class="editor-area" contenteditable="true">Tell voters who you are.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="two-col">
+        <div class="card">
+          <h4>Position & influence</h4>
+          <div class="stat"><span>Current office</span><strong id="officeLabel">Citizen</strong></div>
+          <div class="stat"><span>Party role</span><strong id="partyRole">Member</strong></div>
+          <div class="stat"><span>Popularity</span><strong id="popularity">Neutral</strong></div>
+          <p class="subtle">Offices amplify both capital gains and demographic pull in your home state.</p>
+        </div>
+        <div class="card">
+          <h4>Send money to other players</h4>
+          <form id="sendMoneyForm">
+            <label for="recipient">Recipient name</label>
+            <input id="recipient" placeholder="Brooke Tan" required />
+            <label for="amount">Amount (capital)</label>
+            <input id="amount" type="number" min="1" step="100" required />
+            <div class="inline-actions" style="margin-top: 0.4rem;">
+              <button type="submit" style="width: auto;">Send funds</button>
+              <div class="subtle">Transfers are instant between players.</div>
+            </div>
+          </form>
+          <div class="money-log" id="moneyLog"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Race control</h2>
+          <p class="subtle">Monitor elections you entered and spend political capital on strategy.</p>
+        </div>
+        <div class="badge pill-warning">One active race at a time (except presidential primaries)</div>
+      </div>
+      <div id="raceContainer" class="cards"></div>
+      <div class="notice" id="noRaceNotice">Not in a race yet. Join from any state page.</div>
+    </section>
+
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Companies</h2>
+          <p class="subtle">Build corporations, earn dividends, and wield economic sway.</p>
+        </div>
+        <div class="badge" id="industrialAvg">Industrial Avg: 12,450</div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Create a company (₡1,000,000)</h4>
+          <form id="companyForm">
+            <label for="companyName">Company name</label>
+            <input id="companyName" required placeholder="Atlas Robotics" />
+            <label for="companyCEO">CEO (title shows on profile)</label>
+            <input id="companyCEO" placeholder="Your name" />
+            <label for="companyIndustry">Industry</label>
+            <select id="companyIndustry">
+              <option>Technology</option>
+              <option>Energy</option>
+              <option>Healthcare</option>
+              <option>Finance</option>
+              <option>Manufacturing</option>
+              <option>Logistics</option>
+            </select>
+            <label for="companySalary">CEO salary</label>
+            <input id="companySalary" type="number" min="0" step="1000" placeholder="100000" />
+            <label for="companyShares">Shares to create (max 1,000,000)</label>
+            <input id="companyShares" type="number" min="1000" max="1000000" step="1000" value="100000" />
+            <label for="companyEmployees">Employees</label>
+            <input id="companyEmployees" type="number" min="0" step="10" value="250" />
+            <label for="companyBio">Company bio</label>
+            <textarea id="companyBio" placeholder="Mission, differentiation, and growth thesis"></textarea>
+            <label for="companyLogo">Logo</label>
+            <input id="companyLogo" type="file" accept="image/*" />
+            <div class="inline-actions" style="margin-top: 0.5rem;">
+              <button type="submit" style="width: auto;">Create company</button>
+              <div class="subtle">Max 5 companies per CEO. Shares start at $10 unless income is $1 or less.</div>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <h4>Portfolio</h4>
+          <div id="companyList" class="cards"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

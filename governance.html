@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Governance Console — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="governance">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>Governing console</h1>
+      <p class="subtitle">Manage presidential runs, cabinet seats, bills, and party treasury in one place.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link active" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section id="federal" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Federal government & primaries</h2>
+          <p class="subtle">Manage presidential runs, cabinet seats, and state spending.</p>
+        </div>
+        <div class="badge pill-warning" id="primaryStage">Primaries are open (Independents cannot run)</div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Presidential race</h4>
+          <div class="stat"><span>Status</span><strong id="presStatus">Not registered</strong></div>
+          <div class="stat"><span>Stage</span><strong id="presStage">Primary</strong></div>
+          <div class="inline-actions">
+            <button type="button" id="registerPresident">Register for primary</button>
+            <button type="button" id="spendState">Spend capital in a state</button>
+          </div>
+          <p class="subtle">After primaries, spend capital per state to boost your electoral prospects.</p>
+        </div>
+        <div class="card">
+          <h4>Cabinet appointments</h4>
+          <p class="subtle">Presidents can appoint secretaries directly.</p>
+          <table class="mini-table" id="cabinetTable"></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="congress" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>House & Senate</h2>
+          <p class="subtle">Draft legislation with topic/subtopic outcomes and track its journey.</p>
+        </div>
+        <div class="badge">Bills flow House → Senate → President</div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Write a bill</h4>
+          <label>Chamber</label>
+          <select id="billChamber">
+            <option>House</option>
+            <option>Senate</option>
+          </select>
+          <label>Topic</label>
+          <select id="billTopic"></select>
+          <label>Subtopic</label>
+          <select id="billSubtopic"></select>
+          <label>Outcome</label>
+          <select id="billOutcome">
+            <option>Expand</option>
+            <option>Restrict</option>
+            <option>Fund</option>
+            <option>Repeal</option>
+          </select>
+          <div class="rich-editor" style="margin-top: 0.5rem;">
+            <div class="editor-toolbar">
+              <button type="button" data-command="bold">Bold</button>
+              <button type="button" data-command="italic">Italic</button>
+              <button type="button" data-command="insertUnorderedList">Bullet</button>
+              <button type="button" data-command="insertOrderedList">Numbered</button>
+            </div>
+            <div id="billBody" class="editor-area" contenteditable="true">Draft the bill text here...</div>
+          </div>
+          <div class="inline-actions" style="margin-top: 0.75rem;">
+            <button type="button" id="submitBill" style="width: auto;">Submit bill</button>
+            <div class="subtle">If passed, it heads to the other chamber, then the President.</div>
+          </div>
+        </div>
+        <div class="card">
+          <h4>Bill pipeline</h4>
+          <div id="billList" class="cards"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="party" class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Political party</h2>
+          <p class="subtle">Elect leadership, set dues, and manage treasury withdrawals.</p>
+        </div>
+        <div class="badge">Income skim up to 30%</div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Leadership & dues</h4>
+          <div class="stat"><span>Chairman</span><strong id="chairLabel">Vacant</strong></div>
+          <div class="stat"><span>Vice-Chairman</span><strong id="viceLabel">Vacant</strong></div>
+          <div class="stat"><span>Treasurer</span><strong id="treasurerLabel">Vacant</strong></div>
+          <label for="chairInput">Elect chairman</label>
+          <input id="chairInput" placeholder="Player name" />
+          <div class="inline-actions" style="margin-top: 0.4rem;">
+            <button type="button" id="electChair">Elect</button>
+            <button type="button" id="appointVice">Appoint Vice-Chair</button>
+            <button type="button" id="appointTreasurer">Appoint Treasurer</button>
+          </div>
+          <div class="label-row" style="margin-top: 0.6rem;">
+            <label for="partyRate">Party tithe (max 30%)</label>
+            <input id="partyRate" type="range" min="0" max="30" value="10" />
+            <span id="partyRateLabel">10%</span>
+          </div>
+        </div>
+        <div class="card">
+          <h4>Treasury</h4>
+          <div class="stat"><span>Political capital</span><strong id="treasuryBalance">₱0</strong></div>
+          <form id="withdrawForm">
+            <label for="withdrawAmount">Withdraw to personal account</label>
+            <input id="withdrawAmount" type="number" min="0" step="100" />
+            <div class="inline-actions" style="margin-top: 0.4rem;">
+              <button type="submit" style="width: auto;">Withdraw</button>
+              <div class="subtle">Only executives can pull funds into their own account.</div>
+            </div>
+          </form>
+          <div class="notice" style="margin-top: 0.6rem;">Party executives can adjust the percentage skims dynamically.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>
