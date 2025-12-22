@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>States & Races — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="states">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>State-by-state sandbox</h1>
+      <p class="subtitle">Tap a state to see office holders, election cadence, and join upcoming races.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link active" href="map.html">States</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>National map</h2>
+          <p class="subtle">Tap a state to see office holders, active races, and sign up.</p>
+        </div>
+        <div class="badge">Includes federal government & primaries</div>
+      </div>
+
+      <div class="map-grid" id="mapGrid"></div>
+      <div class="card" id="stateDetails" style="margin-top: 1rem; display: none;"></div>
+    </section>
+
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Your active races</h2>
+          <p class="subtle">Stay aware of polling before you invest more capital.</p>
+        </div>
+        <div class="pill">Join new races from the state grid</div>
+      </div>
+      <div id="raceContainer" class="cards"></div>
+      <div class="notice" id="noRaceNotice">Not in a race yet. Sign up from any state page.</div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,3 +1,5 @@
+const storageKey = "civic-strategy-state";
+
 const economicClasses = {
   poor: { capital: 10000, capitalIncome: 10000 },
   middle: { capital: 100000, capitalIncome: 12500 },
@@ -39,16 +41,6 @@ const cabinetRoles = [
   "Homeland Security",
 ];
 
-const tabs = [
-  { id: "profile", label: "Profile" },
-  { id: "map", label: "Map" },
-  { id: "race", label: "Race" },
-  { id: "companies", label: "Companies" },
-  { id: "federal", label: "Federal" },
-  { id: "congress", label: "House & Senate" },
-  { id: "party", label: "Party" },
-];
-
 let player = {
   email: "",
   name: "",
@@ -67,13 +59,46 @@ let player = {
   avatar: "",
 };
 
-const races = [];
-const companies = [];
-const bills = [];
-const moneyTransfers = [];
-const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
+let races = [];
+let companies = [];
+let bills = [];
+let moneyTransfers = [];
 let primaryOpen = true;
 let treasury = 0;
+
+const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
+
+function saveState() {
+  const payload = { player, races, companies, bills, moneyTransfers, primaryOpen, treasury };
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("Unable to persist state", err);
+  }
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    player = { ...player, ...(parsed.player || {}) };
+    races = parsed.races || [];
+    companies = parsed.companies || [];
+    bills = parsed.bills || [];
+    moneyTransfers = parsed.moneyTransfers || [];
+    primaryOpen = parsed.primaryOpen ?? true;
+    treasury = parsed.treasury ?? 0;
+  } catch (err) {
+    console.warn("Unable to load saved state", err);
+  }
+}
+
+function setIfExists(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+  return el;
+}
 
 function currency(val, symbol = "₡") {
   return `${symbol}${Number(val).toLocaleString()}`;
@@ -88,30 +113,22 @@ function timeUntil(hours) {
   return `${hrs}h ${mins}m`;
 }
 
-function renderTabs() {
-  const tabContainer = document.getElementById("tabs");
-  tabContainer.innerHTML = "";
-  tabs.forEach((tab) => {
-    const btn = document.createElement("button");
-    btn.textContent = tab.label;
-    btn.className = "tab-button" + (tab.id === "profile" ? " active" : "");
-    btn.dataset.target = tab.id;
-    btn.addEventListener("click", () => switchTab(tab.id));
-    tabContainer.appendChild(btn);
-  });
-}
-
-function switchTab(id) {
-  document.querySelectorAll(".tab-button").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.target === id);
-  });
-  document.querySelectorAll(".tab-panel").forEach((panel) => {
-    panel.classList.toggle("active", panel.id === id);
-  });
+function hydrateLanding() {
+  if (player.email) {
+    setIfExists("heroWelcome", `Welcome back, ${player.name || "candidate"}`);
+    setIfExists("heroPersona", `${player.heritage || "Heritage TBD"} • ${player.religion || "Beliefs TBD"}`);
+  } else {
+    setIfExists("heroWelcome", "Shape a national campaign");
+    setIfExists("heroPersona", "Design your avatar and alliances");
+  }
+  setIfExists("heroCapital", currency(player.capital));
+  setIfExists("heroPol", currency(player.politicalCapital, "₱"));
 }
 
 function populateStates() {
   const select = document.getElementById("state");
+  if (!select) return;
+  select.innerHTML = "";
   stateData.forEach((state) => {
     const option = document.createElement("option");
     option.value = state.code;
@@ -121,26 +138,29 @@ function populateStates() {
 }
 
 function renderProfile() {
-  document.getElementById("profileName").textContent = player.name || "No profile yet";
-  document.getElementById("profileState").textContent = player.state
-    ? `${player.state} — ${player.party}`
-    : "Home state will appear here.";
-  document.getElementById("capitalStat").textContent = currency(player.capital);
-  document.getElementById("polCapitalStat").textContent = currency(player.politicalCapital, "₱");
-  document.getElementById("capIncomeStat").textContent = currency(player.capitalIncome);
-  document.getElementById("polIncomeStat").textContent = currency(player.politicalIncome, "₱");
-  document.getElementById("officeLabel").textContent = player.office || "Citizen";
-  document.getElementById("partyRole").textContent = player.partyRole;
+  const nameEl = document.getElementById("profileName");
+  if (!nameEl) return;
+  nameEl.textContent = player.name || "No profile yet";
+  setIfExists("profileState", player.state ? `${player.state} — ${player.party}` : "Home state will appear here.");
+  setIfExists("capitalStat", currency(player.capital));
+  setIfExists("polCapitalStat", currency(player.politicalCapital, "₱"));
+  setIfExists("capIncomeStat", currency(player.capitalIncome));
+  setIfExists("polIncomeStat", currency(player.politicalIncome, "₱"));
+  setIfExists("officeLabel", player.office || "Citizen");
+  setIfExists("partyRole", player.partyRole);
   const badge = document.getElementById("officeBadge");
-  badge.textContent = player.office ? player.office : "Unseated — no office yet";
+  if (badge) badge.textContent = player.office ? player.office : "Unseated — no office yet";
   const tags = [player.economicClass, player.religion, player.heritage, player.party]
     .filter(Boolean)
     .map((t) => `<span class="badge">${t}</span>`)
     .join(" ");
-  document.getElementById("traitTags").innerHTML = tags;
+  const tagList = document.getElementById("traitTags");
+  if (tagList) tagList.innerHTML = tags;
   if (player.avatar) {
-    document.getElementById("avatarPreview").innerHTML = `<img src="${player.avatar}" alt="avatar" />`;
+    const avatar = document.getElementById("avatarPreview");
+    if (avatar) avatar.innerHTML = `<img src="${player.avatar}" alt="avatar" />`;
   }
+  hydrateLanding();
 }
 
 function handleSignup(e) {
@@ -168,15 +188,18 @@ function handleSignup(e) {
     reader.onload = () => {
       player.avatar = reader.result;
       renderProfile();
+      saveState();
     };
     reader.readAsDataURL(file);
   } else {
     renderProfile();
+    saveState();
   }
 }
 
 function renderMap() {
   const grid = document.getElementById("mapGrid");
+  if (!grid) return;
   grid.innerHTML = "";
   stateData.forEach((state) => {
     const btn = document.createElement("div");
@@ -229,13 +252,14 @@ function showState(state) {
 
 function renderRace() {
   const container = document.getElementById("raceContainer");
+  if (!container) return;
   const notice = document.getElementById("noRaceNotice");
   container.innerHTML = "";
   if (!races.length) {
-    notice.style.display = "block";
+    if (notice) notice.style.display = "block";
     return;
   }
-  notice.style.display = "none";
+  if (notice) notice.style.display = "none";
   races.forEach((race, idx) => {
     const card = document.createElement("div");
     card.className = "card";
@@ -274,6 +298,7 @@ function signUpRace(state, type) {
   });
   renderProfile();
   renderRace();
+  saveState();
 }
 
 function buyPoll(idx) {
@@ -283,6 +308,7 @@ function buyPoll(idx) {
   races[idx].polling = Math.min(80, races[idx].polling + 3);
   renderProfile();
   renderRace();
+  saveState();
 }
 
 function attackAd(idx) {
@@ -291,6 +317,7 @@ function attackAd(idx) {
   races[idx].polling = Math.min(90, races[idx].polling + 4);
   renderProfile();
   renderRace();
+  saveState();
 }
 
 function boostSelf(idx) {
@@ -299,36 +326,48 @@ function boostSelf(idx) {
   races[idx].polling = Math.min(95, races[idx].polling + 2);
   renderProfile();
   renderRace();
+  saveState();
 }
 
 function withdrawRace(idx) {
   races.splice(idx, 1);
   renderRace();
+  saveState();
 }
 
 function setupIncomeButtons() {
-  document.getElementById("convertCapital").addEventListener("click", () => {
-    const converted = player.capital * 0.1;
-    player.capital -= converted;
-    player.politicalCapital += converted;
-    renderProfile();
-  });
-  document.getElementById("boostCapital").addEventListener("click", () => {
-    if (player.capital < 5000) return alert("Need ₡5,000 to invest.");
-    player.capital -= 5000;
-    player.capitalIncome += 1200;
-    renderProfile();
-  });
-  document.getElementById("boostPol").addEventListener("click", () => {
-    if (player.politicalCapital < 3000) return alert("Need ₱3,000 to train operatives.");
-    player.politicalCapital -= 3000;
-    player.politicalIncome += 1200;
-    renderProfile();
-  });
+  const convert = document.getElementById("convertCapital");
+  const boostCap = document.getElementById("boostCapital");
+  const boostPol = document.getElementById("boostPol");
+  if (convert)
+    convert.addEventListener("click", () => {
+      const converted = player.capital * 0.1;
+      player.capital -= converted;
+      player.politicalCapital += converted;
+      renderProfile();
+      saveState();
+    });
+  if (boostCap)
+    boostCap.addEventListener("click", () => {
+      if (player.capital < 5000) return alert("Need ₡5,000 to invest.");
+      player.capital -= 5000;
+      player.capitalIncome += 1200;
+      renderProfile();
+      saveState();
+    });
+  if (boostPol)
+    boostPol.addEventListener("click", () => {
+      if (player.politicalCapital < 3000) return alert("Need ₱3,000 to train operatives.");
+      player.politicalCapital -= 3000;
+      player.politicalIncome += 1200;
+      renderProfile();
+      saveState();
+    });
 }
 
 function renderCompanies() {
   const list = document.getElementById("companyList");
+  if (!list) return;
   list.innerHTML = "";
   companies.forEach((c, idx) => {
     const card = document.createElement("div");
@@ -373,6 +412,7 @@ function createCompany(e) {
   companies.push(company);
   renderProfile();
   renderCompanies();
+  saveState();
 }
 
 function issueShares(idx) {
@@ -383,6 +423,7 @@ function issueShares(idx) {
   company.shares += more;
   company.sharePrice = Math.max(1, Math.round(company.sharePrice * 0.97));
   renderCompanies();
+  saveState();
 }
 
 function sellShares(idx) {
@@ -395,16 +436,19 @@ function sellShares(idx) {
   company.sharePrice = Math.round(company.sharePrice * 1.05);
   renderProfile();
   renderCompanies();
+  saveState();
 }
 
 function setDividend(idx) {
   const rate = Number(prompt("Dividend per share", companies[idx].dividend || 0) || 0);
   companies[idx].dividend = rate;
   renderCompanies();
+  saveState();
 }
 
 function setupFederal() {
   const table = document.getElementById("cabinetTable");
+  if (!table) return;
   table.innerHTML = "<tr><th>Role</th><th>Holder</th></tr>" +
     cabinet
       .map((slot) => `<tr><td>${slot.role}</td><td>${slot.holder}</td></tr>`)
@@ -416,6 +460,7 @@ function setupFederal() {
     }
     signUpRace("USA", "President");
     document.getElementById("presStatus").textContent = "Registered";
+    saveState();
   });
   document.getElementById("spendState").addEventListener("click", () => {
     if (!races.find((r) => r.type === "President")) return alert("Register first.");
@@ -423,20 +468,24 @@ function setupFederal() {
     player.capital -= 25000;
     alert("You improved odds in a battleground.");
     renderProfile();
+    saveState();
   });
+  setIfExists("primaryStage", primaryOpen ? "Primaries are open (Independents cannot run)" : "General election underway");
 }
 
 function advanceGeneral() {
   primaryOpen = false;
-  document.getElementById("primaryStage").textContent = "General election underway";
+  setIfExists("primaryStage", "General election underway");
   races.forEach((r) => {
     if (r.type === "President") r.stage = "General";
   });
   renderRace();
+  saveState();
 }
 
 function renderBills() {
   const list = document.getElementById("billList");
+  if (!list) return;
   list.innerHTML = "";
   bills.forEach((bill, idx) => {
     const card = document.createElement("div");
@@ -468,6 +517,7 @@ function submitBill() {
     status: `Filed in the ${chamber}`,
   });
   renderBills();
+  saveState();
 }
 
 function advanceBill(idx) {
@@ -476,17 +526,20 @@ function advanceBill(idx) {
   else if (bill.status.includes("other")) bill.status = "Passed both — awaiting President";
   else if (bill.status.includes("President")) bill.status = "Signed into law";
   renderBills();
+  saveState();
 }
 
 function vetoBill(idx) {
   const bill = bills[idx];
   bill.status = "Vetoed — return to origin for override";
   renderBills();
+  saveState();
 }
 
 function populateBillTopics() {
   const topicSelect = document.getElementById("billTopic");
   const subtopicSelect = document.getElementById("billSubtopic");
+  if (!topicSelect || !subtopicSelect) return;
   Object.keys(topics).forEach((topic) => {
     const opt = document.createElement("option");
     opt.value = topic;
@@ -512,6 +565,7 @@ function renderSubtopics(topic, select) {
 function setupEditor(toolbarSelector, areaSelector) {
   const toolbar = document.querySelector(toolbarSelector);
   const area = document.querySelector(areaSelector);
+  if (!toolbar || !area) return;
   toolbar.querySelectorAll("button").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.execCommand(btn.dataset.command, false, null);
@@ -523,10 +577,12 @@ function setupEditor(toolbarSelector, areaSelector) {
 function setupParty() {
   const rate = document.getElementById("partyRate");
   const label = document.getElementById("partyRateLabel");
+  if (!rate || !label) return;
   rate.addEventListener("input", () => {
     label.textContent = `${rate.value}%`;
     treasury += Number(rate.value) * 100;
     renderTreasury();
+    saveState();
   });
   document.getElementById("electChair").addEventListener("click", () => {
     const name = document.getElementById("chairInput").value || "Chair";
@@ -548,15 +604,18 @@ function setupParty() {
     player.politicalCapital += amount;
     renderTreasury();
     renderProfile();
+    saveState();
   });
 }
 
 function renderTreasury() {
-  document.getElementById("treasuryBalance").textContent = currency(treasury, "₱");
+  setIfExists("treasuryBalance", currency(treasury, "₱"));
 }
 
 function setupMoneyTransfers() {
-  document.getElementById("sendMoneyForm").addEventListener("submit", (e) => {
+  const form = document.getElementById("sendMoneyForm");
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
     const recipient = document.getElementById("recipient").value;
     const amount = Number(document.getElementById("amount").value || 0);
@@ -565,14 +624,19 @@ function setupMoneyTransfers() {
     moneyTransfers.unshift({ recipient, amount, date: new Date() });
     renderProfile();
     renderMoneyLog();
+    saveState();
   });
 }
 
 function renderMoneyLog() {
   const log = document.getElementById("moneyLog");
+  if (!log) return;
   log.innerHTML = moneyTransfers
     .slice(0, 5)
-    .map((t) => `<div>${currency(t.amount)} sent to <strong>${t.recipient}</strong> — ${t.date.toLocaleTimeString()}</div>`)
+    .map((t) => {
+      const timestamp = new Date(t.date);
+      return `<div>${currency(t.amount)} sent to <strong>${t.recipient}</strong> — ${timestamp.toLocaleTimeString()}</div>`;
+    })
     .join("");
 }
 
@@ -582,14 +646,15 @@ function setupRTEs() {
 }
 
 function seedPlayers() {
+  const grid = document.getElementById("mapGrid");
+  if (!grid) return;
   const sample = [
     { name: "Brooke Tan", state: "CA", party: "Democrat" },
     { name: "Jamal Ortiz", state: "TX", party: "Republican" },
     { name: "Lina Cho", state: "WA", party: "Independent" },
   ];
   const log = document.getElementById("moneyLog");
-  log.innerHTML += `<div class="subtle">Click a name anywhere to open their profile.</div>`;
-  const grid = document.getElementById("mapGrid");
+  if (log) log.innerHTML += `<div class="subtle">Click a name anywhere to open their profile.</div>`;
   sample.forEach((p) => {
     const tag = document.createElement("div");
     tag.className = "tag";
@@ -602,7 +667,7 @@ function seedPlayers() {
 }
 
 function init() {
-  renderTabs();
+  loadState();
   populateStates();
   renderProfile();
   renderMap();
@@ -615,12 +680,17 @@ function init() {
   setupParty();
   renderTreasury();
   setupMoneyTransfers();
+  renderMoneyLog();
   setupRTEs();
   seedPlayers();
+  hydrateLanding();
 
-  document.getElementById("signupForm").addEventListener("submit", handleSignup);
-  document.getElementById("companyForm").addEventListener("submit", createCompany);
-  document.getElementById("submitBill").addEventListener("click", submitBill);
+  const signup = document.getElementById("signupForm");
+  if (signup) signup.addEventListener("submit", handleSignup);
+  const company = document.getElementById("companyForm");
+  if (company) company.addEventListener("submit", createCompany);
+  const billBtn = document.getElementById("submitBill");
+  if (billBtn) billBtn.addEventListener("click", submitBill);
 
   setInterval(() => {
     races.forEach((race) => {
@@ -629,9 +699,10 @@ function init() {
       }
     });
     renderRace();
+    saveState();
   }, 10000);
 
-  setTimeout(advanceGeneral, 20000);
+  if (primaryOpen) setTimeout(advanceGeneral, 20000);
 }
 
 window.addEventListener("DOMContentLoaded", init);
