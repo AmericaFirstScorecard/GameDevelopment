@@ -11,7 +11,7 @@
     <div class="brand">
       <p class="pill">Design prototype — policy sandbox</p>
       <h1>Governing console</h1>
-      <p class="subtitle">Manage presidential runs, cabinet seats, bills, and party treasury in one place.</p>
+      <p class="subtitle">Manage presidential runs and cabinet seats in one place.</p>
     </div>
     <nav class="top-nav">
       <a class="nav-link" href="index.html">Home</a>
@@ -21,6 +21,7 @@
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
       <a class="nav-link" href="parties.html">Parties</a>
+      <a class="nav-link" href="search.html">Search</a>
       <a class="nav-link active" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -49,74 +50,6 @@
           <h4>Cabinet appointments</h4>
           <p class="subtle">Presidents can appoint secretaries directly.</p>
           <table class="mini-table" id="cabinetTable"></table>
-        </div>
-      </div>
-    </section>
-
-    <section id="congress" class="tab-panel active">
-      <div class="panel-header">
-        <div>
-          <h2>House & Senate</h2>
-          <p class="subtle">Track legislation across chambers. Drafting now lives in the dedicated House and Senate pages.</p>
-        </div>
-        <div class="badge">Bills flow House → Senate → President</div>
-      </div>
-      <div class="two-col">
-        <div class="card">
-          <h4>Drafting moved</h4>
-          <p class="subtle">Introduce House and Senate bills from their respective pages. This console is now for monitoring pipeline status only.</p>
-          <div class="inline-actions">
-            <a class="button" href="house.html" style="width:auto; text-decoration:none; text-align:center;">Go to House</a>
-            <a class="ghost" href="senate.html" style="width:auto; text-decoration:none; text-align:center;">Go to Senate</a>
-          </div>
-        </div>
-        <div class="card">
-          <h4>Bill pipeline</h4>
-          <p class="subtle">Visit the dedicated House and Senate tabs to vote if you hold a seat.</p>
-          <div id="billList" class="cards" data-bill-list data-scope="all"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="party" class="tab-panel active">
-      <div class="panel-header">
-        <div>
-          <h2>Political party</h2>
-          <p class="subtle">Elect leadership, set dues, and manage treasury withdrawals.</p>
-        </div>
-        <div class="badge">Income skim up to 30%</div>
-      </div>
-      <div class="two-col">
-        <div class="card">
-          <h4>Leadership & dues</h4>
-          <div class="stat"><span>Chairman</span><strong id="chairLabel">Vacant</strong></div>
-          <div class="stat"><span>Vice-Chairman</span><strong id="viceLabel">Vacant</strong></div>
-          <div class="stat"><span>Treasurer</span><strong id="treasurerLabel">Vacant</strong></div>
-          <label for="chairInput">Elect chairman</label>
-          <input id="chairInput" placeholder="Player name" />
-          <div class="inline-actions" style="margin-top: 0.4rem;">
-            <button type="button" id="electChair">Elect</button>
-            <button type="button" id="appointVice">Appoint Vice-Chair</button>
-            <button type="button" id="appointTreasurer">Appoint Treasurer</button>
-          </div>
-          <div class="label-row" style="margin-top: 0.6rem;">
-            <label for="partyRate">Party tithe (max 30%)</label>
-            <input id="partyRate" type="range" min="0" max="30" value="10" />
-            <span id="partyRateLabel">10%</span>
-          </div>
-        </div>
-        <div class="card">
-          <h4>Treasury</h4>
-          <div class="stat"><span>Political capital</span><strong id="treasuryBalance">$0</strong></div>
-          <form id="withdrawForm">
-            <label for="withdrawAmount">Withdraw to personal account</label>
-            <input id="withdrawAmount" type="number" min="0" step="100" />
-            <div class="inline-actions" style="margin-top: 0.4rem;">
-              <button type="submit" style="width: auto;">Withdraw</button>
-              <div class="subtle">Only executives can pull funds into their own account.</div>
-            </div>
-          </form>
-          <div class="notice" style="margin-top: 0.6rem;">Party executives can adjust the percentage skims dynamically.</div>
         </div>
       </div>
     </section>

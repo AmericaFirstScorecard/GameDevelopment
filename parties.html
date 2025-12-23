@@ -11,7 +11,7 @@
     <div class="brand">
       <p class="pill">Design prototype — policy sandbox</p>
       <h1>Political parties</h1>
-      <p class="subtitle">View the current parties, switch allegiance, or go Independent.</p>
+      <p class="subtitle">View the current parties, leadership, and member roster.</p>
     </div>
     <nav class="top-nav">
       <a class="nav-link" href="index.html">Home</a>
@@ -21,6 +21,7 @@
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
       <a class="nav-link active" href="parties.html">Parties</a>
+      <a class="nav-link" href="search.html">Search</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -29,12 +30,91 @@
     <section class="tab-panel active">
       <div class="panel-header">
         <div>
-          <h2>Party roster</h2>
+          <h2>Your party</h2>
           <p class="subtle" id="partyStatus">You are currently a party member.</p>
         </div>
         <div class="badge">Switch anytime</div>
       </div>
-      <div id="partyList" class="cards"></div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Party controls</h4>
+          <div id="partyList" class="cards"></div>
+        </div>
+        <div class="card">
+          <h4>Leadership</h4>
+          <div class="leadership-grid">
+            <div class="leader">
+              <div class="avatar small" id="viceAvatar"></div>
+              <div>
+                <div class="label">Vice-Chair</div>
+                <strong id="viceLabel">Vacant</strong>
+              </div>
+            </div>
+            <div class="leader">
+              <div class="avatar small" id="chairAvatar"></div>
+              <div>
+                <div class="label">Chairman</div>
+                <strong id="chairLabel">Vacant</strong>
+              </div>
+            </div>
+            <div class="leader">
+              <div class="avatar small" id="treasurerAvatar"></div>
+              <div>
+                <div class="label">Treasurer</div>
+                <strong id="treasurerLabel">Vacant</strong>
+              </div>
+            </div>
+          </div>
+          <label for="chairInput">Elect or appoint</label>
+          <input id="chairInput" placeholder="Player name" />
+          <div class="inline-actions" style="margin-top: 0.4rem;">
+            <button type="button" id="electChair">Elect Chair</button>
+            <button type="button" id="appointVice">Appoint Vice</button>
+            <button type="button" id="appointTreasurer">Appoint Treasurer</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="panel-header" style="padding-left:0;">
+          <div>
+            <h3>Members</h3>
+            <p class="subtle">Search by name or scroll through the party roster.</p>
+          </div>
+          <div class="badge">Paginated</div>
+        </div>
+        <div class="inline-actions" style="margin-bottom:0.5rem;">
+          <input id="partySearch" placeholder="Search players" />
+          <button type="button" id="prevPage">Prev</button>
+          <button type="button" id="nextPage">Next</button>
+        </div>
+        <div id="partyMembers" class="cards"></div>
+      </div>
+      <div class="card">
+        <h4>Voting panel</h4>
+        <div class="inline-actions">
+          <button type="button" onclick="alert('Recorded your Yes vote')">Vote Yes</button>
+          <button type="button" onclick="alert('Recorded your No vote')">Vote No</button>
+          <button type="button" onclick="alert('Abstained')">Abstain</button>
+        </div>
+        <p class="subtle">Use the party vote to collect quick sentiment from members.</p>
+      </div>
+      <div class="card executive-only">
+        <h4>Party treasury & tax</h4>
+        <div class="stat"><span>Political capital</span><strong id="treasuryBalance">$0</strong></div>
+        <div class="label-row" style="margin-top: 0.6rem;">
+          <label for="partyRate">Party tithe (max 30%)</label>
+          <input id="partyRate" type="range" min="0" max="30" value="10" />
+          <span id="partyRateLabel">10%</span>
+        </div>
+        <form id="withdrawForm">
+          <label for="withdrawAmount">Withdraw to personal account</label>
+          <input id="withdrawAmount" type="number" min="0" step="100" />
+          <div class="inline-actions" style="margin-top: 0.4rem;">
+            <button type="submit" style="width: auto;">Withdraw</button>
+            <div class="subtle">Only executives can pull funds into their own account.</div>
+          </div>
+        </form>
+      </div>
     </section>
   </main>
 

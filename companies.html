@@ -21,55 +21,86 @@
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link active" href="companies.html">Companies</a>
       <a class="nav-link" href="parties.html">Parties</a>
+      <a class="nav-link" href="search.html">Search</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
 
   <main>
-    <section class="tab-panel active">
+    <div class="tab-switcher">
+      <button class="tab-button active" data-company-tab="portfolio">Portfolio holdings</button>
+      <button class="tab-button" data-company-tab="creation">Create</button>
+      <button class="tab-button" data-company-tab="market">Stock market</button>
+    </div>
+
+    <section class="tab-panel active" data-company-panel="portfolio">
       <div class="panel-header">
         <div>
-          <h2>Companies</h2>
-          <p class="subtle">Create corporations, set dividends, and manage ownership.</p>
+          <h2>Corporate dashboard</h2>
+          <p class="subtle">Track balances, income, and your market share by sector.</p>
         </div>
         <div class="badge" id="industrialAvg">Industrial Avg: 12,450</div>
       </div>
       <div class="two-col">
         <div class="card">
-          <h4>Create a company ($1,000,000)</h4>
-          <form id="companyForm">
-            <label for="companyName">Company name</label>
-            <input id="companyName" required placeholder="Atlas Robotics" />
-            <p class="subtle">Title is fixed to CEO for the founder.</p>
-            <label for="companyIndustry">Industry</label>
-            <select id="companyIndustry">
-              <option>Technology</option>
-              <option>Energy</option>
-              <option>Healthcare</option>
-              <option>Finance</option>
-              <option>Manufacturing</option>
-              <option>Logistics</option>
-            </select>
-            <label for="companySalary">CEO salary</label>
-            <input id="companySalary" type="number" min="0" step="1000" placeholder="100000" />
-            <label for="companyShares">Shares to create (max 1,000,000)</label>
-            <input id="companyShares" type="number" min="1000" max="1000000" step="1000" value="100000" />
-            <p class="subtle">Employees are derived from your state expansions automatically.</p>
-            <label for="companyBio">Company bio</label>
-            <textarea id="companyBio" placeholder="Mission, differentiation, and growth thesis"></textarea>
-            <label for="companyLogo">Logo</label>
-            <input id="companyLogo" type="file" accept="image/*" />
-            <div class="inline-actions" style="margin-top: 0.5rem;">
-              <button type="submit" style="width: auto;">Create company</button>
-              <div class="subtle">Max 5 companies per CEO. Shares start at $10 unless income is $1 or less.</div>
-            </div>
-          </form>
-        </div>
-        <div class="card">
-          <h4>Portfolio</h4>
+          <h4>Owned companies</h4>
           <div id="companyList" class="cards"></div>
         </div>
+        <div class="card">
+          <h4>Stock portfolio</h4>
+          <div id="holdingList" class="cards"></div>
+        </div>
       </div>
+    </section>
+
+    <section class="tab-panel" data-company-panel="creation">
+      <div class="panel-header">
+        <div>
+          <h2>Create a company</h2>
+          <p class="subtle">Found in your current home state and gain instant market share.</p>
+        </div>
+        <div class="pill pill-warning">$1,000,000 capital required</div>
+      </div>
+      <div class="card">
+        <form id="companyForm">
+          <label for="companyName">Company name</label>
+          <input id="companyName" required placeholder="Atlas Robotics" />
+          <p class="subtle">Title is fixed to CEO for the founder.</p>
+          <label for="companyIndustry">Industry</label>
+          <select id="companyIndustry">
+            <option>Technology</option>
+            <option>Energy</option>
+            <option>Healthcare</option>
+            <option>Finance</option>
+            <option>Manufacturing</option>
+            <option>Logistics</option>
+          </select>
+          <label for="companySalary">CEO salary</label>
+          <input id="companySalary" type="number" min="0" step="1000" placeholder="100000" />
+          <label for="companyShares">Shares to create (max 1,000,000)</label>
+          <input id="companyShares" type="number" min="1000" max="1000000" step="1000" value="100000" />
+          <p class="subtle">Employees are derived from your state expansions automatically.</p>
+          <label for="companyBio">Company bio</label>
+          <textarea id="companyBio" placeholder="Mission, differentiation, and growth thesis"></textarea>
+          <label for="companyLogo">Logo</label>
+          <input id="companyLogo" type="file" accept="image/*" />
+          <div class="inline-actions" style="margin-top: 0.5rem;">
+            <button type="submit" style="width: auto;">Create company</button>
+            <div class="subtle">Max 5 companies per CEO. Shares start at $10 unless income is $1 or less.</div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-company-panel="market">
+      <div class="panel-header">
+        <div>
+          <h2>Stock market</h2>
+          <p class="subtle">See every public company and buy or sell shares.</p>
+        </div>
+        <div class="badge">Live board</div>
+      </div>
+      <div id="publicMarket" class="cards"></div>
     </section>
   </main>
 
