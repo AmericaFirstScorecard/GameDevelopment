@@ -6,6 +6,7 @@ const SPECIALIZATION_BONUS = 1.25;
 const BASE_EXPANSION_COST = 150000;
 const MIN_SEIZURE_GAIN = 0.1;
 const MAX_SEIZURE_GAIN = 2;
+const ELECTION_DURATION_MS = 72 * 60 * 60 * 1000;
 
 const economicClasses = {
   poor: { capital: 10000, capitalIncome: 10000 },
@@ -147,6 +148,44 @@ const stateSpecialties = {
   GA: "Logistics",
 };
 
+function buildDefaultPlayer(overrides = {}) {
+  return {
+    email: "",
+    username: "",
+    name: "",
+    state: "",
+    party: "",
+    heritage: "",
+    religion: "",
+    economicClass: "poor",
+    capital: 0,
+    politicalCapital: 0,
+    capitalIncome: 0,
+    politicalIncome: 10000,
+    office: "Citizen",
+    partyRole: "Member",
+    description: "",
+    avatar: "",
+    expansions: {},
+    stockHoldings: [],
+    ...overrides,
+  };
+}
+
+function buildEmptyAccount(overrides = {}) {
+  const basePlayer = buildDefaultPlayer(overrides.player || overrides);
+  return {
+    id: `acct-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    email: basePlayer.email,
+    username: basePlayer.username,
+    player: basePlayer,
+    races: [],
+    companies: [],
+    moneyTransfers: [],
+    lastPayoutAt: Date.now(),
+  };
+}
+
 function buildStateEconomy(code, idx) {
   const population = statePopulations[code] || 5500000;
   const specializedSector = stateSpecialties[code] || economicSectors[idx % economicSectors.length];
@@ -199,27 +238,9 @@ const publicCompanies = [
 const PARTY_PAGE_SIZE = 6;
 
 let loggedIn = false;
-let player = {
-  email: "",
-  username: "",
-  name: "",
-  state: "",
-  party: "",
-  heritage: "",
-  religion: "",
-  economicClass: "poor",
-  capital: 0,
-  politicalCapital: 0,
-  capitalIncome: 0,
-  politicalIncome: 10000,
-  office: "Citizen",
-  partyRole: "Member",
-  description: "",
-  avatar: "",
-  expansions: {},
-  stockHoldings: [],
-};
-
+let accounts = [];
+let activeAccountId = null;
+let player = buildDefaultPlayer();
 let races = [];
 let companies = [];
 let bills = [];
@@ -233,7 +254,8 @@ let partyDirectory = partyOptions.reduce((acc, name) => {
 let politicians = [];
 let partyPage = 1;
 let selectedParty = partyOptions[0];
-let lastPayoutAt = 0;
+let sessionLastPayoutAt = 0;
+let stateRaceBoard = {};
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
 
@@ -257,6 +279,19 @@ function formatCountdown(timestamp) {
   const hrs = Math.floor(diff / 3600000);
   const mins = Math.floor((diff % 3600000) / 60000);
   return `${hrs}h ${mins}m remaining`;
+}
+
+function formatRaceClock(timestamp) {
+  if (!timestamp) return "No timer set";
+  const diff = timestamp - Date.now();
+  if (diff <= 0) return "Completed";
+  const hrs = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  return `${hrs}h ${mins}m left`;
+}
+
+function notifyAction(message) {
+  alert(message);
 }
 
 function formatEconomicClass(value) {
@@ -312,11 +347,76 @@ function upsertPolitician(record) {
   renderPlayerSuggestions();
 }
 
+function getActiveAccount() {
+  return accounts.find((acct) => acct.id === activeAccountId) || null;
+}
+
+function hydrateActiveAccount() {
+  const account = getActiveAccount();
+  if (account) {
+    player = buildDefaultPlayer(account.player);
+    if (Array.isArray(player.expansions)) {
+      const legacy = player.expansions;
+      player.expansions = legacy.reduce((acc, code) => {
+        acc[code] = (acc[code] || 0) + 1;
+        return acc;
+      }, {});
+    } else {
+      player.expansions = player.expansions || {};
+    }
+    if (player.state && !Object.keys(player.expansions).length) {
+      player.expansions[player.state] = 1;
+    }
+    player.stockHoldings = player.stockHoldings || [];
+    races = account.races || [];
+    companies = (account.companies || []).map((company) => ({
+      ...company,
+      expansions: company.expansions || {},
+    }));
+    moneyTransfers = account.moneyTransfers || [];
+    sessionLastPayoutAt = account.lastPayoutAt || Date.now();
+  } else {
+    player = buildDefaultPlayer();
+    races = [];
+    companies = [];
+    moneyTransfers = [];
+    sessionLastPayoutAt = Date.now();
+  }
+}
+
+function syncActiveAccount() {
+  const safePlayer = buildDefaultPlayer(player);
+  if (Array.isArray(safePlayer.expansions)) {
+    const legacy = safePlayer.expansions;
+    safePlayer.expansions = legacy.reduce((acc, code) => {
+      acc[code] = (acc[code] || 0) + 1;
+      return acc;
+    }, {});
+  }
+  safePlayer.expansions = safePlayer.expansions || {};
+  safePlayer.stockHoldings = safePlayer.stockHoldings || [];
+  let account = getActiveAccount();
+  if (!account && loggedIn) {
+    account = buildEmptyAccount({ player: safePlayer });
+    accounts.push(account);
+    activeAccountId = account.id;
+  }
+  if (account) {
+    account.player = safePlayer;
+    account.email = safePlayer.email;
+    account.username = safePlayer.username;
+    account.races = races;
+    account.companies = companies;
+    account.moneyTransfers = moneyTransfers;
+    account.lastPayoutAt = sessionLastPayoutAt || Date.now();
+  }
+}
+
 function saveState() {
+  syncActiveAccount();
   const payload = {
-    player,
-    races,
-    companies,
+    accounts,
+    activeAccountId,
     bills,
     moneyTransfers,
     primaryOpen,
@@ -324,7 +424,8 @@ function saveState() {
     partyDirectory,
     politicians,
     loggedIn,
-    lastPayoutAt,
+    stateRaceBoard,
+    lastPayoutAt: sessionLastPayoutAt,
   };
   try {
     localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -356,33 +457,31 @@ function loadState() {
     const raw = localStorage.getItem(storageKey);
     if (!raw) return;
     const parsed = JSON.parse(raw);
-    player = { ...player, ...(parsed.player || {}) };
-    if (Array.isArray(player.expansions)) {
-      const legacy = player.expansions;
-      player.expansions = legacy.reduce((acc, code) => {
-        acc[code] = (acc[code] || 0) + 1;
-        return acc;
-      }, {});
-    } else {
-      player.expansions = player.expansions || {};
-    }
-    if (player.state && !Object.keys(player.expansions).length) {
-      player.expansions[player.state] = 1;
-    }
-    player.stockHoldings = player.stockHoldings || [];
-    races = parsed.races || [];
-    companies = (parsed.companies || []).map((company) => ({
-      ...company,
-      expansions: company.expansions || {},
-    }));
+    accounts = parsed.accounts || [];
     bills = (parsed.bills || []).map((bill) => normalizeBill(bill));
     moneyTransfers = parsed.moneyTransfers || [];
     primaryOpen = parsed.primaryOpen ?? true;
     partyTreasuries = parsed.partyTreasuries || {};
     partyDirectory = parsed.partyDirectory || partyDirectory;
-    politicians = (parsed.politicians || []).filter((p) => p.username || (player.name && p.name === player.name));
+    stateRaceBoard = parsed.stateRaceBoard || {};
     loggedIn = parsed.loggedIn ?? false;
-    lastPayoutAt = parsed.lastPayoutAt || Date.now();
+    activeAccountId = parsed.activeAccountId || null;
+    if (!accounts.length && parsed.player) {
+      const legacyAccount = buildEmptyAccount({ player: parsed.player });
+      legacyAccount.races = parsed.races || [];
+      legacyAccount.companies = (parsed.companies || []).map((company) => ({
+        ...company,
+        expansions: company.expansions || {},
+      }));
+      legacyAccount.moneyTransfers = parsed.moneyTransfers || [];
+      legacyAccount.lastPayoutAt = parsed.lastPayoutAt || Date.now();
+      accounts.push(legacyAccount);
+      activeAccountId = legacyAccount.id;
+    }
+    if (accounts.length && !activeAccountId) activeAccountId = accounts[0].id;
+    hydrateActiveAccount();
+    politicians = (parsed.politicians || []).filter((p) => p.username || (player.name && p.name === player.name));
+    sessionLastPayoutAt = sessionLastPayoutAt || parsed.lastPayoutAt || Date.now();
   } catch (err) {
     console.warn("Unable to load saved state", err);
   }
@@ -395,7 +494,9 @@ function setIfExists(id, value) {
 }
 
 function ensureLoggedIn(reason = "to continue") {
-  if (loggedIn) return true;
+  if (loggedIn && getActiveAccount()) return true;
+  loggedIn = false;
+  activeAccountId = null;
   alert(`Log in ${reason}. Redirecting now.`);
   window.location.href = "login.html";
   return false;
@@ -427,15 +528,20 @@ function setPartyTreasury(name, amount) {
 
 function logout() {
   loggedIn = false;
+  activeAccountId = null;
+  player = buildDefaultPlayer();
+  races = [];
+  companies = [];
+  moneyTransfers = [];
   saveState();
   window.location.href = "login.html";
 }
 
 function processPayouts() {
   const now = Date.now();
-  if (!lastPayoutAt) lastPayoutAt = now;
+  if (!sessionLastPayoutAt) sessionLastPayoutAt = now;
   const hourly = 3600000;
-  const cycles = Math.floor((now - lastPayoutAt) / hourly);
+  const cycles = Math.floor((now - sessionLastPayoutAt) / hourly);
   if (cycles <= 0) return;
   for (let i = 0; i < cycles; i++) {
     player.capital += player.capitalIncome;
@@ -446,7 +552,8 @@ function processPayouts() {
       company.balance += financials.profit;
     });
   }
-  lastPayoutAt += cycles * hourly;
+  sessionLastPayoutAt += cycles * hourly;
+  syncActiveAccount();
   renderProfile();
   renderCompanies();
   saveState();
@@ -544,16 +651,16 @@ function handleSignup(e) {
     alert("Enter a real first and last name for your character.");
     return;
   }
-  if (politicians.some((p) => p.username?.toLowerCase() === username.toLowerCase())) {
+  const email = (data.get("email") || "").trim();
+  if (accounts.some((acct) => acct.username?.toLowerCase() === username.toLowerCase() || acct.email === email)) {
     alert("That username is already taken.");
     return;
   }
   const selectedClass = data.get("class");
   const stats = economicClasses[selectedClass];
   const chosenState = data.get("state");
-  player = {
-    ...player,
-    email: data.get("email"),
+  const newPlayer = buildDefaultPlayer({
+    email,
     username,
     name: characterName,
     state: chosenState,
@@ -568,8 +675,19 @@ function handleSignup(e) {
     office: "Citizen",
     partyRole: "Member",
     expansions: { [chosenState]: 1 },
-  };
+  });
+  player = newPlayer;
+  races = [];
+  companies = [];
+  moneyTransfers = [];
+  const newAccount = buildEmptyAccount({ player: newPlayer });
+  newAccount.races = races;
+  newAccount.companies = companies;
+  newAccount.moneyTransfers = moneyTransfers;
+  accounts.push(newAccount);
+  activeAccountId = newAccount.id;
   loggedIn = true;
+  sessionLastPayoutAt = Date.now();
   upsertPolitician({
     name: player.name,
     username: player.username,
@@ -591,19 +709,26 @@ function handleSignup(e) {
     renderProfile();
     saveState();
   }
-  lastPayoutAt = Date.now();
+  sessionLastPayoutAt = Date.now();
+  window.location.href = "index.html";
 }
 
 function handleLogin(e) {
   e.preventDefault();
   const data = new FormData(e.target);
-  const email = data.get("loginEmail");
-  const username = data.get("loginUsername");
-  if (!player.email || !player.username) return alert("No account found. Please sign up first.");
-  const matchesEmail = email && player.email === email;
-  const matchesUsername = username && player.username.toLowerCase() === username.toLowerCase();
-  if (!matchesEmail && !matchesUsername) return alert("Credentials do not match our records.");
+  const email = (data.get("loginEmail") || "").trim();
+  const username = (data.get("loginUsername") || "").trim();
+  const account = accounts.find(
+    (acct) => (email && acct.email === email) || (username && acct.username?.toLowerCase() === username.toLowerCase())
+  );
+  if (!account) return alert("No account found. Please sign up first.");
+  activeAccountId = account.id;
   loggedIn = true;
+  hydrateActiveAccount();
+  sessionLastPayoutAt = account.lastPayoutAt || Date.now();
+  renderProfile();
+  renderRace();
+  renderCompanies();
   saveState();
   window.location.href = "index.html";
 }
@@ -627,6 +752,48 @@ function getElectionTiming(state) {
     { label: "Senate (Class " + state.senateClass + ")", every: "120h", next: timeUntil(120 * state.senateClass) },
     { label: "Governor", every: "120h", next: timeUntil(120) },
   ];
+}
+
+function defaultRaceCandidates(stateCode, type) {
+  return [
+    { name: `${stateCode} ${type} frontrunner`, party: "Democrats", polling: 48 },
+    { name: `${stateCode} ${type} challenger`, party: "Republicans", polling: 47 },
+  ];
+}
+
+function ensureStateRaceEntries(stateCode) {
+  if (!stateRaceBoard[stateCode]) {
+    stateRaceBoard[stateCode] = ["Governor", "Senate", "House"].map((type) => ({
+      type,
+      stage: "General",
+      endsAt: Date.now() + ELECTION_DURATION_MS,
+      candidates: defaultRaceCandidates(stateCode, type),
+    }));
+  }
+  return stateRaceBoard[stateCode];
+}
+
+function addPlayerToStateRaceBoard(stateCode, race) {
+  const entries = ensureStateRaceEntries(stateCode);
+  const raceEntry = entries.find((r) => r.type === race.type);
+  if (!raceEntry) return;
+  const playerName = player.name || player.username || "You";
+  const existing = raceEntry.candidates.find((c) => c.name === playerName);
+  const payload = { name: playerName, party: player.party || "Independent", polling: race.polling, stage: race.stage };
+  if (existing) {
+    Object.assign(existing, payload);
+  } else {
+    raceEntry.candidates.push(payload);
+  }
+  raceEntry.stage = race.stage;
+  raceEntry.endsAt = race.endsAt || raceEntry.endsAt;
+}
+
+function removePlayerFromStateRaceBoard(stateCode, type) {
+  const entries = ensureStateRaceEntries(stateCode);
+  const raceEntry = entries.find((r) => r.type === type);
+  if (!raceEntry) return;
+  raceEntry.candidates = raceEntry.candidates.filter((c) => c.name !== (player.name || player.username));
 }
 
 function getStateFromQuery() {
@@ -731,10 +898,14 @@ function expandInState(stateCode) {
   if (!sector) return alert("Choose a sector to expand into.");
   const cost = calculateExpansionCost(stateCode, company);
   if (company.balance < cost) return alert(`The company needs ${currency(cost)} available to expand here.`);
+  if (!confirm(`Spend ${currency(cost)} from ${company.name} to expand in ${stateCode}?`)) return;
   company.balance -= cost;
   const current = getCompanyExpansionCount(company, stateCode);
   company.expansions[stateCode] = current + 1;
   allocateMarketShare(stateCode, sector, company.name, 2 + current * 0.75);
+  const updatedFinancials = calculateCompanyFinancials(company);
+  company.income = updatedFinancials.income;
+  notifyAction(`${company.name} expanded in ${stateCode}. Hourly income refreshed.`);
   renderProfile();
   renderCompanies();
   renderStatePage();
@@ -805,6 +976,7 @@ function renderStatePage() {
   }
   const livingHere = player.state === state.code;
   const moveDisabled = player.capital < MOVE_COST;
+  const canShowMoveButton = !player.state;
   const econ = state.economy;
   const defaultCompany = companies[0];
   const expandCost = defaultCompany ? calculateExpansionCost(state.code, defaultCompany) : 0;
@@ -848,10 +1020,33 @@ function renderStatePage() {
         <button type="button" onclick="signUpRace('${state.code}', 'Governor')" ${!livingHere ? "disabled" : ""}>Join Governor race ($10,000)</button>
       </div>
       ${livingHere ? "<p class='subtle'>You can only run where you live.</p>" : `<p class='subtle'>Move here to qualify for races.</p>`}
-      <button type="button" onclick="moveToState('${state.code}')" ${livingHere || moveDisabled ? "disabled" : ""}>Move here (${currency(MOVE_COST)})</button>
-      ${moveDisabled && !livingHere ? `<p class='subtle'>You need ${currency(MOVE_COST - player.capital)} more capital to move.</p>` : ""}
+      ${
+        canShowMoveButton && !livingHere
+          ? `<button type="button" onclick="moveToState('${state.code}')" ${moveDisabled ? "disabled" : ""}>Move here (${currency(
+              MOVE_COST
+            )})</button>${moveDisabled ? `<p class='subtle'>You need ${currency(MOVE_COST - player.capital)} more capital to move.</p>` : ""}`
+          : ""
+      }
     </div>
   `;
+  const stateRaces = ensureStateRaceEntries(state.code);
+  const racePanels = stateRaces
+    .map((race) => {
+      const candidates =
+        race.candidates?.length
+          ? race.candidates
+              .map((c) => `<div class="stat"><span>${c.name} (${c.party})</span><strong>${c.polling}%</strong></div>`)
+              .join("")
+          : "<div class='subtle'>No candidates yet.</div>";
+      return `
+        <div class="card">
+          <h4>${race.type} — ${race.stage}</h4>
+          <div class="stat"><span>Election clock</span><strong>${formatRaceClock(race.endsAt)}</strong></div>
+          ${candidates}
+        </div>
+      `;
+    })
+    .join("");
   container.innerHTML = `
     <div class="panel-header" style="margin-bottom:1rem;">
       <div>
@@ -896,9 +1091,11 @@ function renderStatePage() {
           <div class="subtle" id="expansionCost">${defaultCompany ? `Costs ${currency(expandCost)} from ${defaultCompany.name}'s balance.` : "Create a company to expand."}</div>
         </div>
         <p class="subtle">Expansion costs now use company balance and boost that company's market share.</p>
-        <div class="divider"></div>
-        <button type="button" style="margin-top:0.5rem;" onclick="seizeMarketFromUI('${state.code}')">Seize market share</button>
-        <p class="subtle">Seizing grants between 0.1% and 2% depending on existing owners.</p>
+      </div>
+      <div class="card">
+        <h4>Active races</h4>
+        <p class="subtle">Primaries and general fields for this state.</p>
+        <div class="cards">${racePanels}</div>
       </div>
     </section>
   `;
@@ -927,6 +1124,7 @@ function renderRace() {
   if (notice) notice.style.display = "none";
   races.forEach((race, idx) => {
     const canSwearIn = race.polling >= 50 && (race.stage === "General" || race.type === "President");
+    const raceClock = formatRaceClock(race.endsAt);
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
@@ -934,6 +1132,7 @@ function renderRace() {
       <p class="subtle">Stage: ${race.stage}</p>
       <div class="stat"><span>Polling</span><strong>${race.polling}%</strong></div>
       <div class="stat"><span>Demographics</span><strong>${race.demographicPulse}</strong></div>
+      <div class="stat"><span>Election timer</span><strong>${raceClock}</strong></div>
       <div class="inline-actions">
         <button type="button" onclick="buyPoll(${idx})">Buy poll (-$5,000)</button>
         <button type="button" onclick="attackAd(${idx})">Attack ad (-$7,500)</button>
@@ -961,13 +1160,16 @@ function signUpRace(state, type) {
     return;
   }
   player.politicalCapital -= 10000;
-  races.push({
+  const newRace = {
     state,
     type,
     stage: type === "President" ? (primaryOpen ? "Primary" : "General") : "Primary",
     polling: 12,
     demographicPulse: "Balanced",
-  });
+    endsAt: Date.now() + ELECTION_DURATION_MS,
+  };
+  races.push(newRace);
+  addPlayerToStateRaceBoard(state, newRace);
   renderProfile();
   renderRace();
   saveState();
@@ -1002,7 +1204,9 @@ function boostSelf(idx) {
 }
 
 function withdrawRace(idx) {
+  const race = races[idx];
   races.splice(idx, 1);
+  if (race) removePlayerFromStateRaceBoard(race.state, race.type);
   renderRace();
   saveState();
 }
@@ -1219,6 +1423,7 @@ function createCompany(e) {
   allocateMarketShare(foundedState, company.industry, company.name, 1);
   renderProfile();
   renderCompanies();
+  notifyAction(`${company.name} created in ${foundedState}.`);
   saveState();
 }
 
@@ -1263,6 +1468,7 @@ function withdrawCompany(idx) {
   if (!amount || amount > company.balance) return alert("Insufficient company funds.");
   company.balance -= amount;
   player.capital += amount;
+  notifyAction(`Withdrew ${currency(amount)} from ${company.name}.`);
   renderProfile();
   renderCompanies();
   saveState();
@@ -1275,6 +1481,7 @@ function injectCompany(idx) {
   if (!amount || amount > player.capital) return alert("Not enough personal capital.");
   player.capital -= amount;
   company.balance += amount;
+  notifyAction(`Injected ${currency(amount)} into ${company.name}.`);
   renderProfile();
   renderCompanies();
   saveState();
@@ -1482,6 +1689,14 @@ function setupParty() {
   const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
   const rate = document.getElementById("partyRate");
   const label = document.getElementById("partyRateLabel");
+  const requireChair = () => {
+    const leadership = getPartyRecord(activeParty);
+    if (leadership.chair !== player.name) {
+      alert("Only the current chair can make this change.");
+      return null;
+    }
+    return leadership;
+  };
   if (rate && label && !rate.dataset.bound) {
     rate.addEventListener("input", () => {
       if (!ensureProfile("to adjust party dues")) return;
@@ -1515,6 +1730,7 @@ function setupParty() {
       if (candidate.name === player.name) player.partyRole = "Chair";
       upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Chair" });
       renderPartyLeadership();
+      notifyAction(`${candidate.name} is now chair.`);
       saveState();
     });
   const viceBtn = document.getElementById("appointVice");
@@ -1522,8 +1738,8 @@ function setupParty() {
     viceBtn.addEventListener("click", () => {
       if (!ensureProfile("to appoint")) return;
       if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
-      const leadership = getPartyRecord(activeParty);
-      if (leadership.chair !== player.name) return alert("Only the chair can appoint the Vice-Chair.");
+      const leadership = requireChair();
+      if (!leadership) return;
       const nameInput = document.getElementById("chairInput").value || player.name;
       const candidate = resolveRealPlayer(nameInput);
       if (!candidate) return alert("Pick a real player for Vice-Chair.");
@@ -1531,6 +1747,22 @@ function setupParty() {
       if (candidate.name === player.name) player.partyRole = "Vice-Chair";
       upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Vice-Chair" });
       renderPartyLeadership();
+      notifyAction(`${candidate.name} appointed as Vice-Chair.`);
+      saveState();
+    });
+  const fireViceBtn = document.getElementById("fireVice");
+  if (fireViceBtn)
+    fireViceBtn.addEventListener("click", () => {
+      if (!ensureProfile("to appoint")) return;
+      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      const leadership = requireChair();
+      if (!leadership) return;
+      if (!leadership.vice) return alert("No Vice-Chair to remove.");
+      if (!confirm("Remove the current Vice-Chair?")) return;
+      if (leadership.vice === player.name) player.partyRole = "Member";
+      leadership.vice = null;
+      renderPartyLeadership();
+      notifyAction("Vice-Chair removed.");
       saveState();
     });
   const treasurerBtn = document.getElementById("appointTreasurer");
@@ -1538,8 +1770,8 @@ function setupParty() {
     treasurerBtn.addEventListener("click", () => {
       if (!ensureProfile("to appoint")) return;
       if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
-      const leadership = getPartyRecord(activeParty);
-      if (leadership.chair !== player.name) return alert("Only the chair can appoint the Treasurer.");
+      const leadership = requireChair();
+      if (!leadership) return;
       const nameInput = document.getElementById("chairInput").value || player.name;
       const candidate = resolveRealPlayer(nameInput);
       if (!candidate) return alert("Pick a real player for Treasurer.");
@@ -1547,6 +1779,22 @@ function setupParty() {
       if (candidate.name === player.name) player.partyRole = "Treasurer";
       upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Treasurer" });
       renderPartyLeadership();
+      notifyAction(`${candidate.name} appointed as Treasurer.`);
+      saveState();
+    });
+  const fireTreasurerBtn = document.getElementById("fireTreasurer");
+  if (fireTreasurerBtn)
+    fireTreasurerBtn.addEventListener("click", () => {
+      if (!ensureProfile("to appoint")) return;
+      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      const leadership = requireChair();
+      if (!leadership) return;
+      if (!leadership.treasurer) return alert("No Treasurer to remove.");
+      if (!confirm("Remove the current Treasurer?")) return;
+      if (leadership.treasurer === player.name) player.partyRole = "Member";
+      leadership.treasurer = null;
+      renderPartyLeadership();
+      notifyAction("Treasurer removed.");
       saveState();
     });
   const withdrawForm = document.getElementById("withdrawForm");
@@ -1564,6 +1812,7 @@ function setupParty() {
       player.politicalCapital += amount;
       renderTreasury();
       renderProfile();
+      notifyAction(`Withdrew ${currency(amount)} from party funds.`);
       saveState();
     });
 }
@@ -1603,6 +1852,7 @@ function joinParty(name) {
   renderProfile();
   renderPartyLeadership();
   renderPartiesPage();
+  notifyAction(`Joined the ${name}.`);
   saveState();
 }
 
@@ -1622,6 +1872,7 @@ function leaveParty() {
   renderProfile();
   renderPartyLeadership();
   renderPartiesPage();
+  notifyAction("You are now independent.");
   saveState();
 }
 
@@ -1637,12 +1888,13 @@ function renderPartiesPage() {
       const card = document.createElement("div");
       card.className = `card party-card ${selectedParty === party ? "active" : ""}`;
       const isMember = player.party === party;
+      const joinButton = isMember ? "" : `<button type="button" onclick="joinParty('${party}')">Join</button>`;
       card.innerHTML = `
         <h4>${party}</h4>
         <p class="subtle">${isMember ? "You belong to this party." : "Click to view details."}</p>
         <div class="inline-actions">
           <button type="button" onclick="selectParty('${party}')" class="ghost">View</button>
-          <button type="button" onclick="joinParty('${party}')" ${isMember ? "disabled" : ""}>Join</button>
+          ${joinButton}
         </div>
       `;
       card.addEventListener("click", () => selectParty(party));
@@ -1706,6 +1958,7 @@ function renderPartyDetails() {
   const treasurer = leadership.treasurer || "Vacant";
   const treasury = getPartyTreasury(selectedParty);
   const isMember = player.party === selectedParty;
+  const joinControl = isMember ? "<div class=\"pill\">Current party</div>" : `<button type="button" onclick="joinParty('${selectedParty}')">Join party</button>`;
   container.innerHTML = `
     <div class="panel-header" style="margin-bottom:0.5rem;">
       <div>
@@ -1713,7 +1966,7 @@ function renderPartyDetails() {
         <p class="subtle">Leadership and treasury are unique to each party.</p>
       </div>
       <div class="inline-actions">
-        <button type="button" onclick="joinParty('${selectedParty}')" ${isMember ? "disabled" : ""}>${isMember ? "Current party" : "Join party"}</button>
+        ${joinControl}
       </div>
     </div>
     <div class="tab-row">
@@ -1734,6 +1987,7 @@ function renderPartyDetails() {
       <p class="subtle">Vice Chair supports the chair and acts on behalf of the party.</p>
       <div class="inline-actions" style="margin-top: 0.4rem;">
         <button type="button" id="appointVice">Appoint Vice Chair</button>
+        <button type="button" id="fireVice" class="ghost">Fire Vice Chair</button>
       </div>
     </div>
     <div class="card role-panel" data-role-panel="treasurer">
@@ -1741,6 +1995,7 @@ function renderPartyDetails() {
       <p class="subtle">Treasurer manages the tithe and payouts for ${selectedParty}.</p>
       <div class="inline-actions" style="margin-top: 0.4rem;">
         <button type="button" id="appointTreasurer">Appoint Treasurer</button>
+        <button type="button" id="fireTreasurer" class="ghost">Fire Treasurer</button>
       </div>
     </div>
     <div class="card executive-only">
@@ -1789,6 +2044,7 @@ function setupMoneyTransfers() {
     moneyTransfers.unshift({ recipient: recipient.name, amount, date: new Date(), username: recipient.username });
     renderProfile();
     renderMoneyLog();
+    notifyAction(`Sent ${currency(amount)} to ${recipient.name}.`);
     saveState();
   });
 }
@@ -1903,7 +2159,7 @@ function renderBillContainers() {
 
 function enforceProfileGate() {
   const page = document.body.dataset.page;
-  if (page !== "login" && !loggedIn) {
+  if (page !== "login" && (!loggedIn || !getActiveAccount())) {
     window.location.href = "login.html";
     return false;
   }
