@@ -112,6 +112,17 @@ body::after {
   box-shadow: 0 10px 30px rgba(124, 243, 201, 0.12);
 }
 
+.profile-link {
+  color: var(--accent-2);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.profile-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
 header {
   padding: 1.5rem 2rem 0.5rem;
   display: flex;
@@ -197,6 +208,39 @@ main {
   border-color: rgba(124, 243, 201, 0.18);
   color: var(--text);
   background: rgba(255, 255, 255, 0.03);
+}
+
+.leader-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(124, 243, 201, 0.18);
+  padding: 0.45rem 0.7rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.chart-area {
+  width: 100%;
+  min-height: 140px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(124, 243, 201, 0.1);
+  border-radius: 12px;
+  padding: 0.5rem;
+}
+
+.sparkline {
+  width: 100%;
+  height: auto;
+}
+
+.sparkline-wrap {
+  margin: 0.35rem 0;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(124, 243, 201, 0.1);
+  border-radius: 12px;
+  padding: 0.25rem;
 }
 
 .button:hover,

@@ -196,21 +196,40 @@ function buildStateEconomy(code, idx) {
   return { population, specializedSector, sectors };
 }
 
-const baseStateData = baseStates.map((state, idx) => ({
-  ...state,
-  flag: `logos/${state.code.toLowerCase()}.png`,
-  governor: "Vacant",
-  senators: ["Vacant seat A", "Vacant seat B"],
-  senateClass: (idx % 3) + 1,
-  houseMembers: Array.from({ length: Math.min(state.houseSeats, 8) }, (_, i) => `House member ${i + 1}`),
-  economy: buildStateEconomy(state.code, idx),
-}));
+function buildSenateClasses(idx) {
+  const first = (idx % 3) + 1;
+  const second = ((idx + 1) % 3) + 1;
+  return [first, second];
+}
+
+const baseStateData = baseStates.map((state, idx) => {
+  const senateClasses = buildSenateClasses(idx);
+  return {
+    ...state,
+    flag: `logos/${state.code.toLowerCase()}.png`,
+    governor: { name: "Vacant", avatar: "" },
+    senators: senateClasses.map((cls) => ({ class: cls, name: "Vacant", avatar: "" })),
+    senateClasses,
+    houseDelegation: [],
+    economy: buildStateEconomy(state.code, idx),
+  };
+});
 
 function cloneStateData() {
   return JSON.parse(JSON.stringify(baseStateData));
 }
 
 let stateData = cloneStateData();
+
+function applyStateLeadership() {
+  Object.entries(stateLeadership || {}).forEach(([code, leadership]) => {
+    const state = stateData.find((s) => s.code === code);
+    if (!state) return;
+    if (leadership.governor) state.governor = leadership.governor;
+    if (leadership.senators) state.senators = leadership.senators;
+    if (leadership.houseDelegation) state.houseDelegation = leadership.houseDelegation;
+  });
+}
 
 const topics = {
   Health: ["Abortion", "Drug Pricing", "Medicare"],
@@ -234,11 +253,51 @@ const cabinetRoles = [
 ];
 
 const publicCompanies = [
-  { symbol: "AMX", name: "AmeriMax Holdings", price: 84.2, change: 1.2 },
-  { symbol: "SOL", name: "Solaris Energy", price: 42.5, change: -0.4 },
-  { symbol: "HLT", name: "HealTech", price: 65.1, change: 0.6 },
-  { symbol: "FNB", name: "First National Bank", price: 31.9, change: 0.2 },
-  { symbol: "TRN", name: "TransRoute Logistics", price: 22.4, change: -0.1 },
+  {
+    symbol: "AMX",
+    name: "AmeriMax Holdings",
+    price: 84.2,
+    change: 1.2,
+    dividendYield: 2.1,
+    sector: "Technology",
+    priceHistory: [40, 44, 48, 55, 62, 70, 74, 79, 83, 84.2],
+  },
+  {
+    symbol: "SOL",
+    name: "Solaris Energy",
+    price: 42.5,
+    change: -0.4,
+    dividendYield: 1.4,
+    sector: "Energy",
+    priceHistory: [25, 26, 30, 32, 35, 38, 41, 44, 43, 42.5],
+  },
+  {
+    symbol: "HLT",
+    name: "HealTech",
+    price: 65.1,
+    change: 0.6,
+    dividendYield: 1.8,
+    sector: "Healthcare",
+    priceHistory: [30, 35, 36, 42, 48, 52, 56, 60, 63, 65.1],
+  },
+  {
+    symbol: "FNB",
+    name: "First National Bank",
+    price: 31.9,
+    change: 0.2,
+    dividendYield: 2.8,
+    sector: "Finance",
+    priceHistory: [18, 19, 21, 24, 27, 29, 30, 31, 31.5, 31.9],
+  },
+  {
+    symbol: "TRN",
+    name: "TransRoute Logistics",
+    price: 22.4,
+    change: -0.1,
+    dividendYield: 1.1,
+    sector: "Logistics",
+    priceHistory: [12, 13, 14, 16, 17, 18, 19, 21, 22, 22.4],
+  },
 ];
 
 const PARTY_PAGE_SIZE = 6;
@@ -263,6 +322,7 @@ let partyPage = 1;
 let selectedParty = partyOptions[0];
 let sessionLastPayoutAt = 0;
 let stateRaceBoard = {};
+let stateLeadership = {};
 let viewingProfile = null;
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
@@ -392,6 +452,23 @@ function renderPlayerSuggestions() {
   });
 }
 
+function renderAvatarPreview(previewId, src, fallback = "Upload an image") {
+  const el = document.getElementById(previewId);
+  if (!el) return;
+  if (src) {
+    el.innerHTML = `<img src="${src}" alt="avatar" />`;
+  } else {
+    el.textContent = fallback;
+  }
+}
+
+function renderPersonLink(name, username, className = "") {
+  if (!name) return "Vacant";
+  const target = encodeURIComponent(username || name);
+  const cls = className ? ` class="${className}"` : "";
+  return `<a href="profile.html?user=${target}"${cls}>${name}</a>`;
+}
+
 function upsertPolitician(record) {
   if (!record?.name || !isValidPersonName(record.name)) return;
   const existing = politicians.find((p) => p.name === record.name);
@@ -496,6 +573,7 @@ function saveState() {
     playerDirectory,
     loggedIn,
     stateRaceBoard,
+    stateLeadership,
     lastPayoutAt: sessionLastPayoutAt,
   };
   try {
@@ -536,6 +614,7 @@ function backfillDirectoryFromAccounts() {
 
 function rebuildEconomyFromDirectory() {
   stateData = cloneStateData();
+  applyStateLeadership();
   const profiles = getRealPlayers();
   profiles.forEach((profile) => {
     (profile.companies || []).forEach((company) => {
@@ -567,6 +646,7 @@ function loadState() {
     partyDirectory = parsed.partyDirectory || partyDirectory;
     playerDirectory = parsed.playerDirectory || {};
     stateRaceBoard = parsed.stateRaceBoard || {};
+    stateLeadership = parsed.stateLeadership || {};
     loggedIn = parsed.loggedIn ?? false;
     activeAccountId = parsed.activeAccountId || null;
     if (!accounts.length && parsed.player) {
@@ -767,10 +847,8 @@ function renderProfile() {
     .join(" ");
   const tagList = document.getElementById("traitTags");
   if (tagList) tagList.innerHTML = tags;
-  if (profileData?.avatar) {
-    const avatar = document.getElementById("avatarPreview");
-    if (avatar) avatar.innerHTML = `<img src="${profileData.avatar}" alt="avatar" />`;
-  }
+  renderAvatarPreview("avatarPreview", profileData?.avatar, "Upload an image");
+  renderAvatarPreview("settingsAvatarPreview", profileData?.avatar, "No photo yet");
   const bioEditor = document.getElementById("bioEditor");
   if (bioEditor) {
     bioEditor.contentEditable = readOnly ? "false" : "true";
@@ -907,11 +985,12 @@ function renderMap() {
 }
 
 function getElectionTiming(state) {
-  return [
-    { label: "House", every: "48h", next: timeUntil(48) },
-    { label: "Senate (Class " + state.senateClass + ")", every: "120h", next: timeUntil(120 * state.senateClass) },
-    { label: "Governor", every: "120h", next: timeUntil(120) },
-  ];
+  const senateTimers = (state.senateClasses || [state.senateClass]).map((cls) => ({
+    label: `Senate (Class ${cls})`,
+    every: "120h",
+    next: timeUntil(120 * cls),
+  }));
+  return [{ label: "House", every: "48h", next: timeUntil(48) }, ...senateTimers, { label: "Governor", every: "120h", next: timeUntil(120) }];
 }
 
 function defaultRaceCandidates(stateCode, type) {
@@ -923,11 +1002,19 @@ function ensureStateRaceEntries(stateCode) {
     stateRaceBoard[stateCode] = ["Governor", "Senate", "House"].map((type) => ({
       type,
       stage: "Open",
+      registrationLocked: false,
       endsAt: Date.now() + ELECTION_DURATION_MS,
+      finalists: [],
       candidates: defaultRaceCandidates(stateCode, type),
     }));
   }
   return stateRaceBoard[stateCode];
+}
+
+function isRegistrationClosed(stateCode, type) {
+  const entry = ensureStateRaceEntries(stateCode).find((race) => race.type === type);
+  if (!entry) return false;
+  return entry.registrationLocked && entry.stage !== "Open";
 }
 
 function getLiveCandidatesForRace(stateCode, type) {
@@ -946,19 +1033,48 @@ function getLiveCandidatesForRace(stateCode, type) {
     .sort((a, b) => (b.polling || 0) - (a.polling || 0));
 }
 
+function syncRaceBoardWithDirectory(stateCode) {
+  const entries = ensureStateRaceEntries(stateCode);
+  const directoryRaces = getRealPlayers().flatMap((profile) =>
+    (profile.races || [])
+      .filter((race) => race.state === stateCode)
+      .map((race) => ({
+        ...race,
+        name: profile.name,
+        username: profile.username,
+        party: profile.party || race.party || "Independent",
+        stage: race.stage || "Primary",
+      }))
+  );
+  directoryRaces.forEach((candidate) => {
+    const entry = entries.find((r) => r.type === candidate.type);
+    if (!entry) return;
+    const existing = entry.candidates.find((c) => c.name === candidate.name);
+    if (existing) {
+      Object.assign(existing, candidate);
+    } else {
+      entry.candidates.push(candidate);
+    }
+    if (entry.stage === "Open") entry.stage = "Primary";
+  });
+  return entries;
+}
+
 function addPlayerToStateRaceBoard(stateCode, race) {
   const entries = ensureStateRaceEntries(stateCode);
   const raceEntry = entries.find((r) => r.type === race.type);
   if (!raceEntry) return;
+  // Prevent late registration once primaries conclude
+  if (raceEntry.registrationLocked && raceEntry.stage !== "Open") return;
   const playerName = player.name || player.username || "You";
   const existing = raceEntry.candidates.find((c) => c.name === playerName);
-  const payload = { name: playerName, party: player.party || "Independent", polling: race.polling, stage: race.stage };
+  const payload = { name: playerName, username: player.username, party: player.party || "Independent", polling: race.polling, stage: race.stage || "Primary" };
   if (existing) {
     Object.assign(existing, payload);
   } else {
     raceEntry.candidates.push(payload);
   }
-  raceEntry.stage = race.stage;
+  raceEntry.stage = race.stage || "Primary";
   raceEntry.endsAt = race.endsAt || raceEntry.endsAt;
 }
 
@@ -967,6 +1083,138 @@ function removePlayerFromStateRaceBoard(stateCode, type) {
   const raceEntry = entries.find((r) => r.type === type);
   if (!raceEntry) return;
   raceEntry.candidates = raceEntry.candidates.filter((c) => c.name !== (player.name || player.username));
+}
+
+function getCandidateProfile(name, username) {
+  const identifier = username || name;
+  if (!identifier) return null;
+  return findPlayerByIdentifier(identifier) || playerDirectory[identifier] || null;
+}
+
+function updateStateLeadership(code, payload) {
+  const current = stateLeadership[code] || {};
+  stateLeadership[code] = {
+    ...current,
+    ...payload,
+  };
+  applyStateLeadership();
+  saveState();
+}
+
+function promotePlayerIfSelf(name, office, stateCode) {
+  if (!name || (name !== player.name && name !== player.username)) return;
+  player.office = office;
+  if (stateCode && stateCode !== "USA") {
+    player.state = stateCode;
+    player.expansions = { ...(player.expansions || {}), [stateCode]: Math.max(1, getExpansionCountForState(stateCode)) };
+  }
+  player.partyRole = player.partyRole || "Member";
+  upsertPolitician({ name: player.name, username: player.username, party: player.party, state: player.state, office: player.office, role: player.partyRole, avatar: player.avatar });
+}
+
+function pickPrimaryFinalists(candidates = []) {
+  const grouped = candidates.reduce((acc, candidate) => {
+    const party = candidate.party || "Independent";
+    if (!acc[party]) acc[party] = [];
+    acc[party].push(candidate);
+    return acc;
+  }, {});
+  return Object.values(grouped)
+    .map((list) => list.sort((a, b) => (b.polling || 0) - (a.polling || 0))[0])
+    .filter(Boolean)
+    .map((candidate) => ({ ...candidate, stage: "General" }));
+}
+
+function calculateHouseSeatAwards(state, candidates) {
+  const totalSeats = state.houseSeats || 0;
+  if (!totalSeats || !candidates.length) return [];
+  const totalPolling = candidates.reduce((sum, c) => sum + Number(c.polling || 0), 0) || 100;
+  const seatMath = candidates.map((candidate) => {
+    const share = Number(candidate.polling || 0) / totalPolling;
+    const exact = share * totalSeats;
+    const floor = Math.floor(exact);
+    return { candidate, seats: floor, remainder: exact - floor };
+  });
+  let assigned = seatMath.reduce((sum, row) => sum + row.seats, 0);
+  let remaining = Math.max(0, totalSeats - assigned);
+  while (remaining > 0) {
+    seatMath.sort((a, b) => {
+      if (b.remainder === a.remainder) return (b.candidate.polling || 0) - (a.candidate.polling || 0);
+      return b.remainder - a.remainder;
+    });
+    seatMath[0].seats += 1;
+    seatMath[0].remainder = 0;
+    remaining -= 1;
+  }
+  return seatMath.filter((row) => row.seats > 0).map((row) => ({ ...row.candidate, seats: row.seats }));
+}
+
+function resolveRaceOutcome(stateCode, raceEntry) {
+  const state = stateData.find((s) => s.code === stateCode);
+  if (!state) return;
+  if (!raceEntry.candidates.length) return;
+  const sorted = [...raceEntry.candidates].sort((a, b) => (b.polling || 0) - (a.polling || 0));
+  if (raceEntry.type === "Governor") {
+    const winner = sorted[0];
+    const profile = getCandidateProfile(winner.name, winner.username);
+    updateStateLeadership(stateCode, { governor: { name: winner.name, username: winner.username, avatar: profile?.avatar || "" } });
+    promotePlayerIfSelf(winner.name, "Governor", stateCode);
+  } else if (raceEntry.type === "Senate") {
+    const seats = (state.senators || []).length || 2;
+    const winners = sorted.slice(0, seats);
+    const filled = winners.map((winner, idx) => {
+      const profile = getCandidateProfile(winner.name, winner.username);
+      return { class: state.senateClasses?.[idx] || idx + 1, name: winner.name, username: winner.username, avatar: profile?.avatar || "" };
+    });
+    updateStateLeadership(stateCode, { senators: filled });
+    winners.forEach((winner) => promotePlayerIfSelf(winner.name, "Senator", stateCode));
+  } else if (raceEntry.type === "House") {
+    const awards = calculateHouseSeatAwards(state, raceEntry.candidates);
+    updateStateLeadership(stateCode, { houseDelegation: awards });
+    awards.forEach((winner) => promotePlayerIfSelf(winner.name, "Representative", stateCode));
+    raceEntry.winners = awards;
+  }
+  raceEntry.stage = "Completed";
+  raceEntry.registrationLocked = true;
+}
+
+function advanceRaceLifecycle() {
+  Object.keys(stateRaceBoard).forEach((code) => syncRaceBoardWithDirectory(code));
+  if (player.state) ensureStateRaceEntries(player.state);
+  Object.entries(stateRaceBoard).forEach(([code, racesForState]) => {
+    racesForState.forEach((race) => {
+      if (race.registrationLocked === undefined) race.registrationLocked = false;
+      if (!race.endsAt) race.endsAt = Date.now() + ELECTION_DURATION_MS;
+      if (!race.candidates.length && race.stage !== "Open") {
+        race.stage = "Open";
+        race.registrationLocked = false;
+      }
+      if (race.stage === "Open" && race.candidates.length) {
+        race.stage = "Primary";
+        race.endsAt = race.endsAt || Date.now() + ELECTION_DURATION_MS;
+      }
+      if (race.stage === "Primary" && Date.now() >= race.endsAt) {
+        race.candidates = pickPrimaryFinalists(race.candidates);
+        race.finalists = race.candidates;
+        race.registrationLocked = true;
+        race.stage = "General";
+        race.endsAt = Date.now() + ELECTION_DURATION_MS;
+        races.forEach((playerRace) => {
+          if (playerRace.state === code && playerRace.type === race.type) {
+            playerRace.stage = race.candidates.some((c) => c.name === (player.name || player.username)) ? "General" : "Eliminated";
+            playerRace.endsAt = race.endsAt;
+          }
+        });
+      } else if (race.stage === "General" && Date.now() >= race.endsAt) {
+        resolveRaceOutcome(code, race);
+        races.forEach((playerRace) => {
+          if (playerRace.state === code && playerRace.type === race.type) {
+            playerRace.stage = "Completed";
+          }
+        });
+      }
+    });
+  });
 }
 
 function getStateFromQuery() {
@@ -988,6 +1236,10 @@ function getExpansionStates() {
 function ensureCompanyExpansions(company) {
   if (!company.expansions) company.expansions = {};
   return company.expansions;
+}
+
+function getExpansionCountForState(code) {
+  return Number(player.expansions?.[code] || 0);
 }
 
 function getCompanyExpansionCount(company, code) {
@@ -1180,12 +1432,40 @@ function renderStatePage() {
     })
     .join("");
   const companyOptions = companies.map((c) => `<option value="${c.name}">${c.name} (${c.industry})</option>`).join("");
+  const governorName = state.governor?.name || "Vacant";
+  const governorLink = governorName === "Vacant" ? "Vacant" : renderPersonLink(governorName, state.governor?.username);
+  const governorAvatar = state.governor?.avatar
+    ? `<div class="avatar small"><img src="${state.governor.avatar}" alt="${governorName}" /></div>`
+    : `<div class="avatar small">${governorName === "Vacant" ? "?" : governorName.slice(0, 1)}</div>`;
+  const governorChip = `
+    <div class="leader-chip">
+      ${governorAvatar}
+      <div>
+        <p class="subtle">Governor</p>
+        <strong>${governorLink}</strong>
+      </div>
+    </div>
+  `;
+  const senatorLabels =
+    (state.senators || []).length > 0
+      ? state.senators
+          .map((senator, idx) => {
+            const label = senator?.name && senator.name !== "Vacant" ? renderPersonLink(senator.name, senator.username) : "Vacant";
+            const classLabel = senator?.class || state.senateClasses?.[idx] || idx + 1;
+            return `${label} (Class ${classLabel})`;
+          })
+          .join(" • ")
+      : "Vacant";
+  const houseDelegation =
+    state.houseDelegation && state.houseDelegation.length
+      ? state.houseDelegation.map((member) => `${renderPersonLink(member.name, member.username)} — ${member.seats} seat${member.seats > 1 ? "s" : ""}`).join(", ")
+      : "Vacant";
   const officials = `
     <div class="card">
       <h4>Leadership</h4>
-      <div class="stat"><span>Governor</span><strong>${state.governor}</strong></div>
-      <div class="stat"><span>Senators</span><strong>${state.senators.join(" • ")}</strong></div>
-      <div class="stat"><span>House delegation (${state.houseSeats})</span><strong>${state.houseMembers.join(", ")}</strong></div>
+      <div class="stat"><span>Governor</span><strong>${governorLink}</strong></div>
+      <div class="stat"><span>Senators</span><strong>${senatorLabels}</strong></div>
+      <div class="stat"><span>House delegation (${state.houseSeats})</span><strong>${houseDelegation}</strong></div>
     </div>
   `;
   const actions = `
@@ -1206,11 +1486,7 @@ function renderStatePage() {
       }
     </div>
   `;
-  const stateRaces = ensureStateRaceEntries(state.code).map((race) => {
-    const candidates = getLiveCandidatesForRace(state.code, race.type);
-    const derivedStage = candidates.length ? (candidates.some((c) => c.stage === "General") ? "General" : "Primary") : "Open";
-    return { ...race, candidates, stage: derivedStage };
-  });
+  const stateRaces = syncRaceBoardWithDirectory(state.code);
   const racePanels = stateRaces
     .map((race) => {
       const candidates =
@@ -1218,15 +1494,26 @@ function renderStatePage() {
           ? race.candidates
               .map((c) => {
                 const handle = c.username ? ` (@${c.username})` : "";
-                return `<div class="stat"><span>${c.name}${handle} (${c.party})</span><strong>${c.polling}%</strong></div>`;
+                const name = renderPersonLink(c.name, c.username, "profile-link");
+                return `<div class="stat"><span>${name}${handle} (${c.party})</span><strong>${c.polling || 0}%</strong></div>`;
               })
               .join("")
           : "<div class='subtle'>No candidates have filed yet.</div>";
+      const winners =
+        race.stage === "Completed" && race.winners?.length
+          ? `<div class="stat"><span>Winners</span><strong>${
+              race.type === "House"
+                ? race.winners.map((w) => `${renderPersonLink(w.name, w.username, "profile-link")} (${w.seats} seats)`).join(", ")
+                : race.winners.map((w) => renderPersonLink(w.name, w.username, "profile-link")).join(", ")
+            }</strong></div>`
+          : "";
       return `
         <div class="card">
           <h4>${race.type} — ${race.stage}</h4>
           <div class="stat"><span>Election clock</span><strong>${formatRaceClock(race.endsAt)}</strong></div>
+          ${race.stage === "General" || race.registrationLocked ? "<div class='pill'>Registration locked</div>" : ""}
           ${candidates}
+          ${winners}
         </div>
       `;
     })
@@ -1238,6 +1525,7 @@ function renderStatePage() {
         <p class="subtle">Residence required for elections. Your home: ${player.state || "None"}.</p>
       </div>
       <div class="state-flag-inline"><img src="${state.flag}" alt="${state.name} flag" /></div>
+      ${governorChip}
     </div>
     <div class="two-col">
       ${officials}
@@ -1346,6 +1634,11 @@ function signUpRace(state, type) {
     alert("You can only run in the state you currently live in. Move first.");
     return;
   }
+  const entry = ensureStateRaceEntries(state).find((r) => r.type === type);
+  if (entry && entry.registrationLocked && entry.stage !== "Open") {
+    alert("Registration is locked. Primaries are closed and the general field is set.");
+    return;
+  }
   if (player.politicalCapital < 10000) {
     alert("You need $10,000 political capital to enter.");
     return;
@@ -1355,10 +1648,11 @@ function signUpRace(state, type) {
     return;
   }
   player.politicalCapital -= 10000;
+  const stage = entry && entry.stage === "General" ? "General" : type === "President" ? (primaryOpen ? "Primary" : "General") : "Primary";
   const newRace = {
     state,
     type,
-    stage: type === "President" ? (primaryOpen ? "Primary" : "General") : "Primary",
+    stage,
     polling: 12,
     demographicPulse: "Balanced",
     endsAt: Date.now() + ELECTION_DURATION_MS,
@@ -1421,11 +1715,22 @@ function swearIntoOffice(idx) {
   const race = races[idx];
   if (race.polling < 50) return alert("You need majority polling to claim victory.");
   const officeMap = { House: "Representative", Senate: "Senator", Governor: "Governor", President: "President" };
-  player.office = officeMap[race.type] || "Citizen";
+  const newOffice = officeMap[race.type] || "Citizen";
+  player.office = newOffice;
   player.state = race.state;
   player.expansions = { ...(player.expansions || {}), [race.state]: Math.max(1, getExpansionCountForState(race.state)) };
   player.partyRole = player.partyRole || "Member";
-  upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+  if (race.type === "Governor") {
+    updateStateLeadership(race.state, { governor: { name: player.name, avatar: player.avatar } });
+  } else if (race.type === "Senate") {
+    const state = stateData.find((s) => s.code === race.state);
+    const seats = state?.senators || [];
+    const updated = seats.map((seat, idx) => (idx === 0 && seat.name === "Vacant" ? { ...seat, name: player.name, avatar: player.avatar } : seat));
+    updateStateLeadership(race.state, { senators: updated });
+  } else if (race.type === "House") {
+    updateStateLeadership(race.state, { houseDelegation: [{ name: player.name, username: player.username, seats: 1 }] });
+  }
+  upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole, avatar: player.avatar });
   renderProfile();
   renderCompanies();
   renderStatePage();
@@ -1439,9 +1744,13 @@ function setupIncomeButtons() {
   if (convert)
     convert.addEventListener("click", () => {
       if (!ensureProfile("before converting capital")) return;
-      const converted = player.capital * 0.1;
-      player.capital -= converted;
-      player.politicalCapital += converted;
+      const amount = Number(prompt("Convert capital to political capital at a 10% rate. How much capital do you want to convert?", 100000) || 0);
+      if (!amount || amount <= 0) return;
+      if (amount > player.capital) return alert("Not enough capital to convert that amount.");
+      const yieldAmount = Math.floor(amount * 0.1);
+      player.capital -= amount;
+      player.politicalCapital += yieldAmount;
+      alert(`Converted ${currency(amount)} into ${currency(yieldAmount)} political capital (10% rate).`);
       renderProfile();
       saveState();
     });
@@ -1475,15 +1784,18 @@ function renderCompanies() {
     const profit = financials.profit;
     const employees = calculateEmployees(c);
     const expansions = getTotalExpansionsForCompany(c);
+    const dividendYield = c.dividend && c.sharePrice ? ((c.dividend / c.sharePrice) * 100).toFixed(2) : 0;
+    const ceoLabel = c.ceo ? renderPersonLink(c.ceo, c.ceoUsername, "profile-link") : "CEO";
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <h4>${c.name} <span class="badge">${c.industry}</span></h4>
-      <p class="subtle">CEO: ${c.ceo} • ${c.shares.toLocaleString()} shares @ $${c.sharePrice}</p>
+      <p class="subtle">CEO: ${ceoLabel} • ${c.shares.toLocaleString()} shares @ $${c.sharePrice}</p>
       <div class="stat"><span>Balance</span><strong>${currency(c.balance)}</strong></div>
       <div class="stat"><span>Income / hr</span><strong>${currency(c.income)}</strong></div>
       <div class="stat"><span>Profit</span><strong>${currency(profit)}</strong></div>
       <div class="stat"><span>Employees</span><strong>${employees.toLocaleString()}</strong></div>
+      <div class="stat"><span>Dividend yield</span><strong>${dividendYield ? `${dividendYield}%` : "No dividend"}</strong></div>
       <div class="stat"><span>State expansions</span><strong>${expansions}</strong></div>
       <div class="inline-actions">
         <button type="button" onclick="issueShares(${idx})">Create more shares</button>
@@ -1495,6 +1807,77 @@ function renderCompanies() {
     `;
     list.appendChild(card);
   });
+}
+
+function ensurePriceHistory(company) {
+  if (!company.priceHistory || !company.priceHistory.length) {
+    company.priceHistory = [company.price || 1];
+  }
+  if (company.priceHistory[company.priceHistory.length - 1] !== company.price) {
+    company.priceHistory.push(company.price);
+  }
+}
+
+function renderSparkline(series = [], width = 180, height = 60) {
+  if (!series.length) return "";
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const range = max - min || 1;
+  const gradientId = `sparkGradient-${Math.random().toString(36).slice(2, 8)}`;
+  const points = series
+    .map((value, idx) => {
+      const x = (idx / Math.max(1, series.length - 1)) * (width - 10) + 5;
+      const y = height - ((value - min) / range) * (height - 10) - 5;
+      return `${x},${y}`;
+    })
+    .join(" ");
+  return `<svg viewBox="0 0 ${width} ${height}" class="sparkline">
+    <defs>
+      <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#7cf3c9" />
+        <stop offset="100%" stop-color="#58d3ff" />
+      </linearGradient>
+    </defs>
+    <polyline fill="none" stroke="url(#${gradientId})" stroke-width="2" points="${points}" />
+  </svg>`;
+}
+
+function getIndustrialAverageSeries() {
+  const maxLength = Math.max(...publicCompanies.map((c) => (c.priceHistory ? c.priceHistory.length : 0)), 0);
+  const series = [];
+  for (let i = 0; i < maxLength; i++) {
+    const points = publicCompanies.map((c) => (c.priceHistory?.[i] !== undefined ? c.priceHistory[i] : c.priceHistory?.[c.priceHistory.length - 1] || c.price));
+    const avg = points.reduce((sum, val) => sum + (val || 0), 0) / (points.length || 1);
+    series.push(Number(avg.toFixed(2)));
+  }
+  return series;
+}
+
+function renderIndustrialAverage() {
+  const series = getIndustrialAverageSeries();
+  const chart = document.getElementById("industrialChart");
+  const badge = document.getElementById("industrialAvg");
+  if (badge && series.length) {
+    badge.textContent = `Industrial Avg: ${currency(series[series.length - 1])}`;
+  }
+  if (chart) {
+    chart.innerHTML = series.length ? renderSparkline(series, 420, 120) : "<div class='subtle'>No data yet.</div>";
+  }
+}
+
+function tickPublicMarkets() {
+  publicCompanies.forEach((company) => {
+    ensurePriceHistory(company);
+    const last = company.priceHistory[company.priceHistory.length - 1] || company.price;
+    const drift = (Math.random() * 1.2 - 0.6) / 100; // +/-0.6%
+    const next = Math.max(1, Number((last * (1 + drift)).toFixed(2)));
+    company.change = Number((((next - last) / last) * 100).toFixed(2));
+    company.price = next;
+    company.priceHistory.push(next);
+    if (company.priceHistory.length > 60) company.priceHistory.shift();
+  });
+  renderPublicMarket();
+  renderIndustrialAverage();
 }
 
 function renderHoldings() {
@@ -1509,12 +1892,14 @@ function renderHoldings() {
     const company = publicCompanies.find((c) => c.symbol === h.symbol);
     const price = company?.price || 0;
     const value = price * h.shares;
+    const yieldRate = company?.dividendYield || 0;
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
       <h4>${h.symbol} — ${company?.name || "Private"}</h4>
       <p class="subtle">${h.shares.toLocaleString()} shares @ ${currency(price)}</p>
       <div class="stat"><span>Value</span><strong>${currency(value)}</strong></div>
+      <div class="stat"><span>Dividend yield</span><strong>${yieldRate ? `${yieldRate}%` : "—"}</strong></div>
       <div class="inline-actions">
         <button type="button" onclick="sellStock('${h.symbol}')">Sell</button>
       </div>
@@ -1526,17 +1911,22 @@ function renderHoldings() {
 function renderPublicMarket() {
   const market = document.getElementById("publicMarket");
   if (!market) return;
-  market.innerHTML = "";
-  publicCompanies.forEach((c) => {
-    const card = document.createElement("div");
-    card.className = "card";
+    market.innerHTML = "";
+    publicCompanies.forEach((c) => {
+      ensurePriceHistory(c);
+      const card = document.createElement("div");
+      card.className = "card";
     const changeClass = c.change >= 0 ? "pill" : "pill pill-warning";
+    const startPrice = c.priceHistory?.[0] || c.price;
     card.innerHTML = `
       <div class="flex" style="justify-content: space-between; align-items:center;">
         <h4>${c.name}</h4>
         <span class="${changeClass}">${c.symbol} ${c.change >= 0 ? "+" : ""}${c.change}%</span>
       </div>
       <div class="stat"><span>Price</span><strong>${currency(c.price)}</strong></div>
+      <div class="stat"><span>Dividend yield</span><strong>${c.dividendYield ? `${c.dividendYield}%` : "—"}</strong></div>
+      <div class="stat"><span>Start → now</span><strong>${currency(startPrice)} → ${currency(c.price)}</strong></div>
+      <div class="sparkline-wrap">${renderSparkline(c.priceHistory)}</div>
       <div class="inline-actions">
         <button type="button" onclick="buyStock('${c.symbol}')">Buy</button>
         <button type="button" onclick="sellStock('${c.symbol}')">Sell</button>
@@ -1544,6 +1934,7 @@ function renderPublicMarket() {
     `;
     market.appendChild(card);
   });
+  renderIndustrialAverage();
 }
 
 function buyStock(symbol) {
@@ -1614,6 +2005,7 @@ function createCompany(e) {
   const company = {
     name: document.getElementById("companyName").value,
     ceo: player.name || "CEO",
+    ceoUsername: player.username,
     owner: ownerId,
     industry: document.getElementById("companyIndustry").value,
     salary: Number(document.getElementById("companySalary").value || 0),
@@ -1667,6 +2059,8 @@ function setDividend(idx) {
   if (!ensureProfile("to set dividends")) return;
   const rate = Number(prompt("Dividend per share", companies[idx].dividend || 0) || 0);
   companies[idx].dividend = rate;
+  const yieldRate = companies[idx].sharePrice ? ((rate / companies[idx].sharePrice) * 100).toFixed(2) : 0;
+  alert(`Dividend set to ${currency(rate)} per share (${yieldRate}% yield).`);
   renderCompanies();
   saveState();
 }
@@ -2033,9 +2427,12 @@ function renderPartyLeadership() {
   const chair = leadership.chair || "Vacant";
   const vice = leadership.vice || "Vacant";
   const treasurer = leadership.treasurer || "Vacant";
-  setIfExists("chairLabel", chair);
-  setIfExists("viceLabel", vice);
-  setIfExists("treasurerLabel", treasurer);
+  const chairLabel = document.getElementById("chairLabel");
+  const viceLabel = document.getElementById("viceLabel");
+  const treasurerLabel = document.getElementById("treasurerLabel");
+  if (chairLabel) chairLabel.innerHTML = chair === "Vacant" ? "Vacant" : renderPersonLink(chair);
+  if (viceLabel) viceLabel.innerHTML = vice === "Vacant" ? "Vacant" : renderPersonLink(vice);
+  if (treasurerLabel) treasurerLabel.innerHTML = treasurer === "Vacant" ? "Vacant" : renderPersonLink(treasurer);
   const chairAvatar = document.getElementById("chairAvatar");
   const viceAvatar = document.getElementById("viceAvatar");
   const treasurerAvatar = document.getElementById("treasurerAvatar");
@@ -2111,7 +2508,32 @@ function renderPartiesPage() {
       list.appendChild(card);
     });
   }
+  const searchInput = document.getElementById("partySearch");
+  if (searchInput && !searchInput.dataset.bound) {
+    searchInput.addEventListener("input", () => {
+      partyPage = 1;
+      renderPartyMembers();
+    });
+    searchInput.dataset.bound = "true";
+  }
+  const prev = document.getElementById("partyPrev");
+  const next = document.getElementById("partyNext");
+  if (prev && !prev.dataset.bound) {
+    prev.addEventListener("click", () => {
+      partyPage = Math.max(1, partyPage - 1);
+      renderPartyMembers();
+    });
+    prev.dataset.bound = "true";
+  }
+  if (next && !next.dataset.bound) {
+    next.addEventListener("click", () => {
+      partyPage += 1;
+      renderPartyMembers();
+    });
+    next.dataset.bound = "true";
+  }
   renderPartyDetails();
+  renderPartyMembers();
 }
 
 function renderTreasury() {
@@ -2131,11 +2553,27 @@ function renderPartyMembers() {
   const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
   const roster = politicians.filter((p) => p.party === activeParty);
   const filtered = roster.filter((p) => !query || p.name.toLowerCase().includes(query));
+  const roleRank = { chair: 1, "vice-chair": 2, treasurer: 3 };
+  const officeRank = { president: 1, governor: 2, senator: 3, representative: 4, citizen: 5 };
+  filtered.sort((a, b) => {
+    const aRole = roleRank[(a.role || a.partyRole || "").toLowerCase()] || 99;
+    const bRole = roleRank[(b.role || b.partyRole || "").toLowerCase()] || 99;
+    if (aRole !== bRole) return aRole - bRole;
+    const aOffice = officeRank[(a.office || "").toLowerCase()] || 99;
+    const bOffice = officeRank[(b.office || "").toLowerCase()] || 99;
+    if (aOffice !== bOffice) return aOffice - bOffice;
+    return (a.name || "").localeCompare(b.name || "");
+  });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PARTY_PAGE_SIZE));
   partyPage = Math.min(Math.max(1, partyPage), totalPages);
   const start = (partyPage - 1) * PARTY_PAGE_SIZE;
   const slice = filtered.slice(start, start + PARTY_PAGE_SIZE);
   container.innerHTML = "";
+  setIfExists("partyPageLabel", `${partyPage}/${totalPages}`);
+  const prev = document.getElementById("partyPrev");
+  const next = document.getElementById("partyNext");
+  if (prev) prev.disabled = partyPage <= 1;
+  if (next) next.disabled = partyPage >= totalPages;
   if (!slice.length) {
     container.innerHTML = "<div class='notice'>No members found.</div>";
     return;
@@ -2146,9 +2584,9 @@ function renderPartyMembers() {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      <h4>${member.name}</h4>
+      <h4>${renderPersonLink(member.name, member.username, "profile-link")}</h4>
       <p class="subtle">${flag} ${member.state || "Unknown"} • ${member.office || "Citizen"}</p>
-      <div class="stat"><span>Role</span><strong>${member.role || "Member"}</strong></div>
+      <div class="stat"><span>Role</span><strong>${member.role || member.partyRole || "Member"}</strong></div>
     `;
     container.appendChild(card);
   });
@@ -2156,6 +2594,7 @@ function renderPartyMembers() {
 
 function selectParty(party) {
   selectedParty = party;
+  partyPage = 1;
   renderPartiesPage();
 }
 
@@ -2267,7 +2706,8 @@ function renderMoneyLog() {
     .map((t) => {
       const timestamp = new Date(t.date);
       const handle = t.username ? ` (@${t.username})` : "";
-      return `<div>${currency(t.amount)} sent to <strong>${t.recipient}${handle}</strong> — ${timestamp.toLocaleTimeString()}</div>`;
+      const recipient = renderPersonLink(t.recipient, t.username, "profile-link");
+      return `<div>${currency(t.amount)} sent to <strong>${recipient}${handle}</strong> — ${timestamp.toLocaleTimeString()}</div>`;
     })
     .join("");
 }
@@ -2290,6 +2730,34 @@ function setupBioSync() {
       saveState();
     }, 350);
   });
+}
+
+function setupAvatarUpload() {
+  const upload = document.getElementById("avatarUpload");
+  const saveBtn = document.getElementById("saveAvatar");
+  if (!upload || !saveBtn || saveBtn.dataset.bound) return;
+  upload.addEventListener("change", () => {
+    if (!upload.files?.length) return;
+    const [file] = upload.files;
+    const reader = new FileReader();
+    reader.onload = () => renderAvatarPreview("settingsAvatarPreview", reader.result, "No photo yet");
+    reader.readAsDataURL(file);
+  });
+  saveBtn.addEventListener("click", () => {
+    if (!ensureProfile("before updating your portrait")) return;
+    if (!upload.files?.length) return alert("Choose an image to upload.");
+    const [file] = upload.files;
+    const reader = new FileReader();
+    reader.onload = () => {
+      player.avatar = reader.result;
+      publishPlayerProfile();
+      renderProfile();
+      saveState();
+      notifyAction("Profile photo updated.");
+    };
+    reader.readAsDataURL(file);
+  });
+  saveBtn.dataset.bound = "true";
 }
 
 function openPublicProfile(identifier) {
@@ -2326,7 +2794,7 @@ function renderSearchResults() {
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      <h4>${p.name} ${p.username ? `<span class="subtle">@${p.username}</span>` : ""}</h4>
+      <h4>${renderPersonLink(p.name, p.username, "profile-link")} ${p.username ? `<span class="subtle">@${p.username}</span>` : ""}</h4>
       <p class="subtle">${flag} ${p.state || "Unknown"} • ${p.party || "Independent"}</p>
       <div class="stat"><span>Position</span><strong>${p.office || "Citizen"}</strong></div>
       <div class="stat"><span>Role</span><strong>${role}</strong></div>
@@ -2420,6 +2888,7 @@ function init() {
   renderPartiesPage();
   renderStatePage();
   renderRace();
+  advanceRaceLifecycle();
   renderCompanies();
   renderHoldings();
   renderPublicMarket();
@@ -2433,6 +2902,7 @@ function init() {
   renderMoneyLog();
   setupRTEs();
   setupBioSync();
+  setupAvatarUpload();
   setupSearchFilters();
   hydrateLanding();
   setupBillForm({
@@ -2460,16 +2930,15 @@ function init() {
   if (company) company.addEventListener("submit", createCompany);
 
   processPayouts();
+  tickPublicMarkets();
   setInterval(processPayouts, 60000);
+  setInterval(tickPublicMarkets, 60000);
 
   setInterval(() => {
-    races.forEach((race) => {
-      if (race.stage === "Primary") {
-        race.stage = race.type === "President" && !primaryOpen ? "General" : "Primary";
-      }
-    });
+    advanceRaceLifecycle();
     renderRace();
     renderBillContainers();
+    renderStatePage();
     saveState();
   }, 30000);
 
