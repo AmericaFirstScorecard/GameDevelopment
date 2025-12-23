@@ -229,6 +229,12 @@ main {
   gap: 0.35rem;
 }
 
+.tab-switcher {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0 0 1rem;
+}
+
 .page-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -456,6 +462,18 @@ button:hover {
   object-fit: cover;
 }
 
+.avatar.small {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, rgba(124, 243, 201, 0.2), rgba(108, 197, 255, 0.16));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--bg);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -473,6 +491,23 @@ button:hover {
   gap: 1rem;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.leadership-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin: 0.6rem 0;
+}
+
+.leader {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(124, 243, 201, 0.1);
+  padding: 0.6rem;
+  border-radius: 10px;
 }
 
 .map-grid {
@@ -504,16 +539,37 @@ button:hover {
   box-shadow: 0 12px 26px rgba(124, 243, 201, 0.16);
 }
 
-.state-flag {
-  font-size: 1.6rem;
-  display: block;
+.state-flag img {
+  width: 36px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 6px;
   margin-bottom: 0.35rem;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .subtle {
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.6;
+}
+
+.inline-flag {
+  width: 24px;
+  height: 16px;
+  object-fit: cover;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-right: 0.35rem;
+}
+
+.state-flag-inline img {
+  width: 48px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 
 .divider {
@@ -610,6 +666,19 @@ button:hover {
   max-height: 240px;
   overflow: auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.sector-list details {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(124, 243, 201, 0.12);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.sector-list summary {
+  cursor: pointer;
+  font-weight: 700;
 }
 
 .tag-list {
