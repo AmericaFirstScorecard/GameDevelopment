@@ -198,17 +198,10 @@ const publicCompanies = [
 
 const PARTY_PAGE_SIZE = 6;
 
-const samplePoliticians = [
-  { name: "Jordan Blake", party: "Democrats", state: "CA", office: "Representative", role: "Member" },
-  { name: "Taylor Quinn", party: "Republicans", state: "TX", office: "Senator", role: "Member" },
-  { name: "Casey Morgan", party: "Independents", state: "FL", office: "Governor", role: "Member" },
-  { name: "Alexis Hart", party: "Democrats", state: "NY", office: "Senator", role: "Member" },
-  { name: "Dakota Reeves", party: "Republicans", state: "AZ", office: "Representative", role: "Member" },
-];
-
 let loggedIn = false;
 let player = {
   email: "",
+  username: "",
   name: "",
   state: "",
   party: "",
@@ -232,10 +225,15 @@ let companies = [];
 let bills = [];
 let moneyTransfers = [];
 let primaryOpen = true;
-let treasury = 0;
-let partyLeadership = { chair: null, vice: null, treasurer: null };
+let partyTreasuries = {};
+let partyDirectory = partyOptions.reduce((acc, name) => {
+  acc[name] = { chair: null, vice: null, treasurer: null };
+  return acc;
+}, {});
 let politicians = [];
 let partyPage = 1;
+let selectedParty = partyOptions[0];
+let lastPayoutAt = 0;
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
 
@@ -265,26 +263,53 @@ function formatEconomicClass(value) {
   return economicClassLabels[value] || value;
 }
 
+function isValidPersonName(name) {
+  return typeof name === "string" && /^[A-Za-z]+(?: [A-Za-z]+)+$/.test(name.trim());
+}
+
+function findPlayerByIdentifier(identifier) {
+  if (!identifier) return null;
+  const lower = identifier.toLowerCase();
+  return politicians.find((p) => p.name?.toLowerCase() === lower || p.username?.toLowerCase() === lower);
+}
+
+function getRealPlayers() {
+  return politicians.filter((p) => p.name && isValidPersonName(p.name));
+}
+
+function resolveRealPlayer(identifier) {
+  const record = findPlayerByIdentifier(identifier);
+  if (!record || !isValidPersonName(record.name)) return null;
+  return record;
+}
+
+function renderPlayerSuggestions() {
+  const list = document.getElementById("playerSuggestions");
+  if (!list) return;
+  list.innerHTML = "";
+  getRealPlayers().forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.label = p.username ? `@${p.username}` : p.party || "Player";
+    list.appendChild(opt);
+  });
+}
+
 function upsertPolitician(record) {
-  if (!record?.name) return;
+  if (!record?.name || !isValidPersonName(record.name)) return;
   const existing = politicians.find((p) => p.name === record.name);
   if (existing) {
     Object.assign(existing, record);
   } else {
     politicians.push({
       ...record,
+      username: record.username || player.username,
       avatar: player.avatar,
       description: player.description,
+      isPlayer: true,
     });
   }
-}
-
-function seedPoliticians() {
-  samplePoliticians.forEach((p) => {
-    if (!politicians.find((entry) => entry.name === p.name)) {
-      politicians.push({ ...p });
-    }
-  });
+  renderPlayerSuggestions();
 }
 
 function saveState() {
@@ -295,10 +320,11 @@ function saveState() {
     bills,
     moneyTransfers,
     primaryOpen,
-    treasury,
-    partyLeadership,
+    partyTreasuries,
+    partyDirectory,
     politicians,
     loggedIn,
+    lastPayoutAt,
   };
   try {
     localStorage.setItem(storageKey, JSON.stringify(payload));
@@ -345,14 +371,18 @@ function loadState() {
     }
     player.stockHoldings = player.stockHoldings || [];
     races = parsed.races || [];
-    companies = parsed.companies || [];
+    companies = (parsed.companies || []).map((company) => ({
+      ...company,
+      expansions: company.expansions || {},
+    }));
     bills = (parsed.bills || []).map((bill) => normalizeBill(bill));
     moneyTransfers = parsed.moneyTransfers || [];
     primaryOpen = parsed.primaryOpen ?? true;
-    treasury = parsed.treasury ?? 0;
-    partyLeadership = parsed.partyLeadership || { chair: null, vice: null, treasurer: null };
-    politicians = parsed.politicians || [];
+    partyTreasuries = parsed.partyTreasuries || {};
+    partyDirectory = parsed.partyDirectory || partyDirectory;
+    politicians = (parsed.politicians || []).filter((p) => p.username || (player.name && p.name === player.name));
     loggedIn = parsed.loggedIn ?? false;
+    lastPayoutAt = parsed.lastPayoutAt || Date.now();
   } catch (err) {
     console.warn("Unable to load saved state", err);
   }
@@ -373,10 +403,53 @@ function ensureLoggedIn(reason = "to continue") {
 
 function ensureProfile(reason = "to continue") {
   if (!ensureLoggedIn(reason)) return false;
-  if (player.email) return true;
-  alert(`Create a profile ${reason}. Redirecting now.`);
-  window.location.href = "profile.html";
+  if (player.email && player.username) return true;
+  alert(`Create an account ${reason}. Redirecting now.`);
+  window.location.href = "login.html";
   return false;
+}
+
+function getPartyRecord(name = player.party) {
+  if (!partyDirectory[name]) {
+    partyDirectory[name] = { chair: null, vice: null, treasurer: null };
+  }
+  return partyDirectory[name];
+}
+
+function getPartyTreasury(name = player.party) {
+  if (!partyTreasuries[name]) partyTreasuries[name] = 0;
+  return partyTreasuries[name];
+}
+
+function setPartyTreasury(name, amount) {
+  partyTreasuries[name] = Math.max(0, amount);
+}
+
+function logout() {
+  loggedIn = false;
+  saveState();
+  window.location.href = "login.html";
+}
+
+function processPayouts() {
+  const now = Date.now();
+  if (!lastPayoutAt) lastPayoutAt = now;
+  const hourly = 3600000;
+  const cycles = Math.floor((now - lastPayoutAt) / hourly);
+  if (cycles <= 0) return;
+  for (let i = 0; i < cycles; i++) {
+    player.capital += player.capitalIncome;
+    player.politicalCapital += player.politicalIncome;
+    companies.forEach((company) => {
+      const financials = calculateCompanyFinancials(company);
+      company.income = financials.income;
+      company.balance += financials.profit;
+    });
+  }
+  lastPayoutAt += cycles * hourly;
+  renderProfile();
+  renderCompanies();
+  saveState();
 }
 
 function isHouseMember() {
@@ -437,6 +510,8 @@ function renderProfile() {
   if (profileStateEl) {
     profileStateEl.innerHTML = player.state ? `${flagImg} ${player.state} — ${player.party}` : "Home state will appear here.";
   }
+  setIfExists("profileUsername", player.username ? `@${player.username}` : "");
+  setIfExists("profileEmail", player.email || "Not set");
   setIfExists("capitalStat", currency(player.capital));
   setIfExists("polCapitalStat", currency(player.politicalCapital));
   setIfExists("capIncomeStat", currency(player.capitalIncome));
@@ -462,13 +537,25 @@ function renderProfile() {
 function handleSignup(e) {
   e.preventDefault();
   const data = new FormData(e.target);
+  const username = (data.get("username") || "").trim();
+  const characterName = (data.get("name") || "").trim();
+  if (!username) return alert("A unique username is required.");
+  if (!isValidPersonName(characterName)) {
+    alert("Enter a real first and last name for your character.");
+    return;
+  }
+  if (politicians.some((p) => p.username?.toLowerCase() === username.toLowerCase())) {
+    alert("That username is already taken.");
+    return;
+  }
   const selectedClass = data.get("class");
   const stats = economicClasses[selectedClass];
   const chosenState = data.get("state");
   player = {
     ...player,
     email: data.get("email"),
-    name: data.get("name"),
+    username,
+    name: characterName,
     state: chosenState,
     party: data.get("party"),
     heritage: data.get("heritage"),
@@ -485,6 +572,7 @@ function handleSignup(e) {
   loggedIn = true;
   upsertPolitician({
     name: player.name,
+    username: player.username,
     party: player.party,
     state: player.state,
     office: player.office,
@@ -503,23 +591,18 @@ function handleSignup(e) {
     renderProfile();
     saveState();
   }
+  lastPayoutAt = Date.now();
 }
 
 function handleLogin(e) {
   e.preventDefault();
   const data = new FormData(e.target);
   const email = data.get("loginEmail");
-  if (!email) return;
-  if (!player.email) {
-    loggedIn = true;
-    saveState();
-    window.location.href = "profile.html";
-    return;
-  }
-  if (player.email !== email) {
-    alert("No account found with that email. Please sign up first.");
-    return;
-  }
+  const username = data.get("loginUsername");
+  if (!player.email || !player.username) return alert("No account found. Please sign up first.");
+  const matchesEmail = email && player.email === email;
+  const matchesUsername = username && player.username.toLowerCase() === username.toLowerCase();
+  if (!matchesEmail && !matchesUsername) return alert("Credentials do not match our records.");
   loggedIn = true;
   saveState();
   window.location.href = "index.html";
@@ -554,31 +637,39 @@ function getStateFromQuery() {
 }
 
 function getExpansionStates() {
-  const expansions = player.expansions || {};
-  if (player.state && !expansions[player.state]) {
-    expansions[player.state] = 1;
-  }
-  return Object.keys(expansions);
+  const states = new Set();
+  if (player.state) states.add(player.state);
+  companies.forEach((company) => {
+    Object.keys(company.expansions || {}).forEach((code) => states.add(code));
+  });
+  return Array.from(states);
 }
 
-function getExpansionCountForState(code) {
-  const expansions = player.expansions || {};
-  if (player.state === code && !expansions[code]) return 1;
+function ensureCompanyExpansions(company) {
+  if (!company.expansions) company.expansions = {};
+  return company.expansions;
+}
+
+function getCompanyExpansionCount(company, code) {
+  const expansions = ensureCompanyExpansions(company);
   return expansions[code] || 0;
 }
 
+function getTotalExpansionsForCompany(company) {
+  const expansions = ensureCompanyExpansions(company);
+  return Object.values(expansions).reduce((sum, count) => sum + count, 0);
+}
+
 function getTotalExpansions() {
-  const expansions = player.expansions || {};
-  const base = player.state && !expansions[player.state] ? 1 : 0;
-  return Object.values(expansions).reduce((sum, count) => sum + count, 0) + base;
+  return companies.reduce((sum, company) => sum + getTotalExpansionsForCompany(company), 0);
 }
 
-function calculateEmployees() {
-  return getTotalExpansions() * EMPLOYEES_PER_EXPANSION;
+function calculateEmployees(company) {
+  return getTotalExpansionsForCompany(company) * EMPLOYEES_PER_EXPANSION;
 }
 
-function calculateExpansionCost(code) {
-  const current = getExpansionCountForState(code);
+function calculateExpansionCost(code, company) {
+  const current = company ? getCompanyExpansionCount(company, code) : 0;
   return Math.round(BASE_EXPANSION_COST * Math.pow(1.35, current));
 }
 
@@ -633,15 +724,37 @@ function calculateCompanyFinancials(company) {
 
 function expandInState(stateCode) {
   if (!ensureProfile("before expanding")) return;
-  const cost = calculateExpansionCost(stateCode);
-  if (player.capital < cost) return alert(`Expanding here requires ${currency(cost)}.`);
-  player.capital -= cost;
-  const current = getExpansionCountForState(stateCode);
-  player.expansions = { ...(player.expansions || {}), [stateCode]: current + 1 };
+  const companyName = document.getElementById("companySelect")?.value;
+  const sector = document.getElementById("sectorSelect")?.value;
+  const company = companies.find((c) => c.name === companyName);
+  if (!company) return alert("Pick a company to fund this expansion.");
+  if (!sector) return alert("Choose a sector to expand into.");
+  const cost = calculateExpansionCost(stateCode, company);
+  if (company.balance < cost) return alert(`The company needs ${currency(cost)} available to expand here.`);
+  company.balance -= cost;
+  const current = getCompanyExpansionCount(company, stateCode);
+  company.expansions[stateCode] = current + 1;
+  allocateMarketShare(stateCode, sector, company.name, 2 + current * 0.75);
   renderProfile();
   renderCompanies();
   renderStatePage();
   saveState();
+}
+
+function updateExpansionCostDisplay(stateCode) {
+  const costLabel = document.getElementById("expansionCost");
+  const button = document.getElementById("expandButton");
+  if (!costLabel || !button) return;
+  const companyName = document.getElementById("companySelect")?.value;
+  const company = companies.find((c) => c.name === companyName);
+  if (!company) {
+    costLabel.textContent = "Create or select a company to expand.";
+    button.disabled = true;
+    return;
+  }
+  const cost = calculateExpansionCost(stateCode, company);
+  costLabel.textContent = `Costs ${currency(cost)} from ${company.name}'s balance (balance: ${currency(company.balance)}).`;
+  button.disabled = company.balance < cost;
 }
 
 function seizeMarketShare(stateCode, sector, companyName) {
@@ -693,7 +806,8 @@ function renderStatePage() {
   const livingHere = player.state === state.code;
   const moveDisabled = player.capital < MOVE_COST;
   const econ = state.economy;
-  const expandCost = calculateExpansionCost(state.code);
+  const defaultCompany = companies[0];
+  const expandCost = defaultCompany ? calculateExpansionCost(state.code, defaultCompany) : 0;
   const racesHtml = getElectionTiming(state)
     .map((r) => `<div class=\"stat\"><span>${r.label} race</span><strong>Every ${r.every} — next in ${r.next}</strong></div>`)
     .join("");
@@ -761,10 +875,6 @@ function renderStatePage() {
         <h4>Economy & sectors</h4>
         <div class="stat"><span>Population</span><strong>${econ.population.toLocaleString()}</strong></div>
         <div class="stat"><span>Specialized sector</span><strong>${econ.specializedSector} (+25% income)</strong></div>
-        <div class="inline-actions" style="margin-bottom:0.5rem;">
-          <button type="button" onclick="expandInState('${state.code}')" ${player.capital < expandCost ? "disabled" : ""}>Expand presence (${currency(expandCost)})</button>
-          <div class="subtle">Costs scale with each expansion in this state.</div>
-        </div>
         <div class="sector-list">${sectorsHtml}</div>
         <div class="divider"></div>
         <div class="form-grid">
@@ -781,11 +891,23 @@ function renderStatePage() {
             </select>
           </div>
         </div>
+        <div class="inline-actions" style="margin-top:0.5rem; align-items:flex-start;">
+          <button type="button" id="expandButton" onclick="expandInState('${state.code}')">Expand sector presence</button>
+          <div class="subtle" id="expansionCost">${defaultCompany ? `Costs ${currency(expandCost)} from ${defaultCompany.name}'s balance.` : "Create a company to expand."}</div>
+        </div>
+        <p class="subtle">Expansion costs now use company balance and boost that company's market share.</p>
+        <div class="divider"></div>
         <button type="button" style="margin-top:0.5rem;" onclick="seizeMarketFromUI('${state.code}')">Seize market share</button>
         <p class="subtle">Seizing grants between 0.1% and 2% depending on existing owners.</p>
       </div>
     </section>
   `;
+  updateExpansionCostDisplay(state.code);
+  const companySelect = document.getElementById("companySelect");
+  if (companySelect && !companySelect.dataset.bound) {
+    companySelect.addEventListener("change", () => updateExpansionCostDisplay(state.code));
+    companySelect.dataset.bound = "true";
+  }
 }
 
 function showState(state) {
@@ -940,7 +1062,8 @@ function renderCompanies() {
     const financials = calculateCompanyFinancials(c);
     c.income = financials.income;
     const profit = financials.profit;
-    const employees = calculateEmployees();
+    const employees = calculateEmployees(c);
+    const expansions = getTotalExpansionsForCompany(c);
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
@@ -950,7 +1073,7 @@ function renderCompanies() {
       <div class="stat"><span>Income / hr</span><strong>${currency(c.income)}</strong></div>
       <div class="stat"><span>Profit</span><strong>${currency(profit)}</strong></div>
       <div class="stat"><span>Employees</span><strong>${employees.toLocaleString()}</strong></div>
-      <div class="stat"><span>State expansions</span><strong>${getTotalExpansions()}</strong></div>
+      <div class="stat"><span>State expansions</span><strong>${expansions}</strong></div>
       <div class="inline-actions">
         <button type="button" onclick="issueShares(${idx})">Create more shares</button>
         <button type="button" onclick="sellShares(${idx})">Sell personal shares</button>
@@ -1089,6 +1212,7 @@ function createCompany(e) {
     expenses,
     balance: Math.round(income * 2),
     foundedState,
+    expansions: { [foundedState]: 1 },
   };
   player.capital -= 1000000;
   companies.push(company);
@@ -1355,31 +1479,41 @@ function setupEditor(toolbarSelector, areaSelector) {
 }
 
 function setupParty() {
+  const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
   const rate = document.getElementById("partyRate");
   const label = document.getElementById("partyRateLabel");
-  if (!rate || !label) return;
-  rate.addEventListener("input", () => {
-    if (!ensureProfile("to adjust party dues")) return;
-    if (partyLeadership.chair !== player.name) {
-      alert("Only the chair can set the party tithe.");
-      rate.value = rate.dataset.last || rate.value;
-      return;
-    }
-    label.textContent = `${rate.value}%`;
-    rate.dataset.last = rate.value;
-    treasury += Number(rate.value) * 100;
-    renderTreasury();
-    saveState();
-  });
+  if (rate && label && !rate.dataset.bound) {
+    rate.addEventListener("input", () => {
+      if (!ensureProfile("to adjust party dues")) return;
+      if (player.party !== activeParty) return alert("Join this party before updating dues.");
+      const leadership = getPartyRecord(activeParty);
+      if (leadership.chair !== player.name) {
+        alert("Only the current chair can set the party tithe.");
+        rate.value = rate.dataset.last || rate.value;
+        return;
+      }
+      label.textContent = `${rate.value}%`;
+      rate.dataset.last = rate.value;
+      const treasury = getPartyTreasury(activeParty);
+      setPartyTreasury(activeParty, treasury + Number(rate.value) * 100);
+      renderTreasury();
+      saveState();
+    });
+    rate.dataset.bound = "true";
+  }
   const chairBtn = document.getElementById("electChair");
   if (chairBtn)
     chairBtn.addEventListener("click", () => {
       if (!ensureProfile("to run the party")) return;
-      const name = document.getElementById("chairInput").value || player.name;
-      if (partyLeadership.chair && partyLeadership.chair !== player.name) return alert("Only the current chair can change leadership.");
-      partyLeadership.chair = name;
-      if (name === player.name) player.partyRole = "Chair";
-      upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      const nameInput = document.getElementById("chairInput").value || player.name;
+      const candidate = resolveRealPlayer(nameInput);
+      if (!candidate) return alert("Only real player names are eligible.");
+      const leadership = getPartyRecord(activeParty);
+      if (leadership.chair && leadership.chair !== player.name) return alert("Only the current chair can change leadership.");
+      leadership.chair = candidate.name;
+      if (candidate.name === player.name) player.partyRole = "Chair";
+      upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Chair" });
       renderPartyLeadership();
       saveState();
     });
@@ -1387,11 +1521,15 @@ function setupParty() {
   if (viceBtn)
     viceBtn.addEventListener("click", () => {
       if (!ensureProfile("to appoint")) return;
-      if (partyLeadership.chair !== player.name) return alert("Only the chair can appoint the Vice-Chair.");
-      const name = document.getElementById("chairInput").value || "Vice";
-      partyLeadership.vice = name;
-      if (name === player.name) player.partyRole = "Vice-Chair";
-      upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      const leadership = getPartyRecord(activeParty);
+      if (leadership.chair !== player.name) return alert("Only the chair can appoint the Vice-Chair.");
+      const nameInput = document.getElementById("chairInput").value || player.name;
+      const candidate = resolveRealPlayer(nameInput);
+      if (!candidate) return alert("Pick a real player for Vice-Chair.");
+      leadership.vice = candidate.name;
+      if (candidate.name === player.name) player.partyRole = "Vice-Chair";
+      upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Vice-Chair" });
       renderPartyLeadership();
       saveState();
     });
@@ -1399,11 +1537,15 @@ function setupParty() {
   if (treasurerBtn)
     treasurerBtn.addEventListener("click", () => {
       if (!ensureProfile("to appoint")) return;
-      if (partyLeadership.chair !== player.name) return alert("Only the chair can appoint the Treasurer.");
-      const name = document.getElementById("chairInput").value || "Treasurer";
-      partyLeadership.treasurer = name;
-      if (name === player.name) player.partyRole = "Treasurer";
-      upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      const leadership = getPartyRecord(activeParty);
+      if (leadership.chair !== player.name) return alert("Only the chair can appoint the Treasurer.");
+      const nameInput = document.getElementById("chairInput").value || player.name;
+      const candidate = resolveRealPlayer(nameInput);
+      if (!candidate) return alert("Pick a real player for Treasurer.");
+      leadership.treasurer = candidate.name;
+      if (candidate.name === player.name) player.partyRole = "Treasurer";
+      upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Treasurer" });
       renderPartyLeadership();
       saveState();
     });
@@ -1412,10 +1554,13 @@ function setupParty() {
     withdrawForm.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!ensureProfile("to withdraw funds")) return;
-      if (![partyLeadership.treasurer, partyLeadership.chair].includes(player.name)) return alert("Only the chair or treasurer can withdraw.");
+      if (player.party !== activeParty) return alert("Join this party before moving funds.");
+      const leadership = getPartyRecord(activeParty);
+      if (![leadership.treasurer, leadership.chair].includes(player.name)) return alert("Only the chair or treasurer can withdraw.");
       const amount = Number(document.getElementById("withdrawAmount").value || 0);
+      const treasury = getPartyTreasury(activeParty);
       if (amount > treasury) return alert("Insufficient party funds.");
-      treasury -= amount;
+      setPartyTreasury(activeParty, treasury - amount);
       player.politicalCapital += amount;
       renderTreasury();
       renderProfile();
@@ -1424,9 +1569,11 @@ function setupParty() {
 }
 
 function renderPartyLeadership() {
-  const chair = partyLeadership.chair || "Vacant";
-  const vice = partyLeadership.vice || "Vacant";
-  const treasurer = partyLeadership.treasurer || "Vacant";
+  const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
+  const leadership = getPartyRecord(activeParty);
+  const chair = leadership.chair || "Vacant";
+  const vice = leadership.vice || "Vacant";
+  const treasurer = leadership.treasurer || "Vacant";
   setIfExists("chairLabel", chair);
   setIfExists("viceLabel", vice);
   setIfExists("treasurerLabel", treasurer);
@@ -1442,12 +1589,17 @@ function renderPartyLeadership() {
 function joinParty(name) {
   if (!ensureProfile("to join a party")) return;
   if (player.party === name) return alert(`You are already a member of the ${name}.`);
-  if ([partyLeadership.chair, partyLeadership.vice, partyLeadership.treasurer].includes(player.name)) {
-    partyLeadership = { chair: null, vice: null, treasurer: null };
+  const previousParty = player.party;
+  const previousLeadership = getPartyRecord(previousParty);
+  if ([previousLeadership.chair, previousLeadership.vice, previousLeadership.treasurer].includes(player.name)) {
+    previousLeadership.chair = previousLeadership.chair === player.name ? null : previousLeadership.chair;
+    previousLeadership.vice = previousLeadership.vice === player.name ? null : previousLeadership.vice;
+    previousLeadership.treasurer = previousLeadership.treasurer === player.name ? null : previousLeadership.treasurer;
   }
   player.party = name;
   player.partyRole = "Member";
   upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+  selectedParty = name;
   renderProfile();
   renderPartyLeadership();
   renderPartiesPage();
@@ -1457,12 +1609,16 @@ function joinParty(name) {
 function leaveParty() {
   if (!ensureProfile("to leave a party")) return;
   if (player.party === "Independents") return alert("You are already independent.");
-  if ([partyLeadership.chair, partyLeadership.vice, partyLeadership.treasurer].includes(player.name)) {
-    partyLeadership = { chair: null, vice: null, treasurer: null };
+  const leadership = getPartyRecord();
+  if ([leadership.chair, leadership.vice, leadership.treasurer].includes(player.name)) {
+    leadership.chair = leadership.chair === player.name ? null : leadership.chair;
+    leadership.vice = leadership.vice === player.name ? null : leadership.vice;
+    leadership.treasurer = leadership.treasurer === player.name ? null : leadership.treasurer;
   }
   player.party = "Independents";
   player.partyRole = "Member";
   upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+  selectedParty = "Independents";
   renderProfile();
   renderPartyLeadership();
   renderPartiesPage();
@@ -1474,60 +1630,33 @@ function renderPartiesPage() {
   const list = document.getElementById("partyList");
   const status = document.getElementById("partyStatus");
   if (status) status.textContent = player.party ? `You are currently a ${player.party} member.` : "No party chosen.";
+  if (!selectedParty) selectedParty = player.party || partyOptions[0];
   if (list) {
     list.innerHTML = "";
     partyOptions.forEach((party) => {
       const card = document.createElement("div");
-      card.className = "card";
+      card.className = `card party-card ${selectedParty === party ? "active" : ""}`;
       const isMember = player.party === party;
       card.innerHTML = `
         <h4>${party}</h4>
-        <p class="subtle">Switch parties at any time. Leaving sends you to Independents.</p>
+        <p class="subtle">${isMember ? "You belong to this party." : "Click to view details."}</p>
         <div class="inline-actions">
-          <button type="button" onclick="joinParty('${party}')" ${isMember ? "disabled" : ""}>Join ${party}</button>
+          <button type="button" onclick="selectParty('${party}')" class="ghost">View</button>
+          <button type="button" onclick="joinParty('${party}')" ${isMember ? "disabled" : ""}>Join</button>
         </div>
       `;
+      card.addEventListener("click", () => selectParty(party));
       list.appendChild(card);
     });
-    const leaveCard = document.createElement("div");
-    leaveCard.className = "card";
-    leaveCard.innerHTML = `
-      <h4>Leave your party</h4>
-      <p class="subtle">Leaving makes you an Independent instantly.</p>
-      <button type="button" onclick="leaveParty()" ${player.party === "Independents" ? "disabled" : ""}>Become Independent</button>
-    `;
-    list.appendChild(leaveCard);
   }
-  const search = document.getElementById("partySearch");
-  const prev = document.getElementById("prevPage");
-  const next = document.getElementById("nextPage");
-  if (search && !search.dataset.bound) {
-    search.addEventListener("input", () => {
-      partyPage = 1;
-      renderPartyMembers();
-    });
-    search.dataset.bound = "true";
-  }
-  if (prev && !prev.dataset.bound) {
-    prev.addEventListener("click", () => {
-      partyPage = Math.max(1, partyPage - 1);
-      renderPartyMembers();
-    });
-    prev.dataset.bound = "true";
-  }
-  if (next && !next.dataset.bound) {
-    next.addEventListener("click", () => {
-      partyPage += 1;
-      renderPartyMembers();
-    });
-    next.dataset.bound = "true";
-  }
-  renderPartyMembers();
+  renderPartyDetails();
 }
 
 function renderTreasury() {
-  setIfExists("treasuryBalance", currency(treasury));
-  const isExecutive = [partyLeadership.chair, partyLeadership.vice, partyLeadership.treasurer].includes(player.name);
+  const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
+  const leadership = getPartyRecord(activeParty);
+  setIfExists("treasuryBalance", currency(getPartyTreasury(activeParty)));
+  const isExecutive = [leadership.chair, leadership.vice, leadership.treasurer].includes(player.name);
   document.querySelectorAll(".executive-only").forEach((panel) => {
     panel.style.display = isExecutive ? "block" : "none";
   });
@@ -1537,7 +1666,8 @@ function renderPartyMembers() {
   const container = document.getElementById("partyMembers");
   if (!container) return;
   const query = document.getElementById("partySearch")?.value?.toLowerCase() || "";
-  const roster = politicians.filter((p) => p.party === player.party);
+  const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
+  const roster = politicians.filter((p) => p.party === activeParty);
   const filtered = roster.filter((p) => !query || p.name.toLowerCase().includes(query));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PARTY_PAGE_SIZE));
   partyPage = Math.min(Math.max(1, partyPage), totalPages);
@@ -1562,17 +1692,101 @@ function renderPartyMembers() {
   });
 }
 
+function selectParty(party) {
+  selectedParty = party;
+  renderPartiesPage();
+}
+
+function renderPartyDetails() {
+  const container = document.getElementById("partyDetails");
+  if (!container) return;
+  const leadership = getPartyRecord(selectedParty);
+  const chair = leadership.chair || "Vacant";
+  const vice = leadership.vice || "Vacant";
+  const treasurer = leadership.treasurer || "Vacant";
+  const treasury = getPartyTreasury(selectedParty);
+  const isMember = player.party === selectedParty;
+  container.innerHTML = `
+    <div class="panel-header" style="margin-bottom:0.5rem;">
+      <div>
+        <h3>${selectedParty}</h3>
+        <p class="subtle">Leadership and treasury are unique to each party.</p>
+      </div>
+      <div class="inline-actions">
+        <button type="button" onclick="joinParty('${selectedParty}')" ${isMember ? "disabled" : ""}>${isMember ? "Current party" : "Join party"}</button>
+      </div>
+    </div>
+    <div class="tab-row">
+      <button type="button" data-role-tab="chair" class="active">Chair</button>
+      <button type="button" data-role-tab="vice">Vice Chair</button>
+      <button type="button" data-role-tab="treasurer">Treasurer</button>
+    </div>
+    <div class="card role-panel active" data-role-panel="chair">
+      <div class="stat"><span>Chair</span><strong id="chairLabel">${chair}</strong></div>
+      <label for="chairInput">Assign chair (real players only)</label>
+      <input id="chairInput" list="playerSuggestions" placeholder="Search players by name" />
+      <div class="inline-actions" style="margin-top: 0.4rem;">
+        <button type="button" id="electChair">Elect Chair</button>
+      </div>
+    </div>
+    <div class="card role-panel" data-role-panel="vice">
+      <div class="stat"><span>Vice Chair</span><strong id="viceLabel">${vice}</strong></div>
+      <p class="subtle">Vice Chair supports the chair and acts on behalf of the party.</p>
+      <div class="inline-actions" style="margin-top: 0.4rem;">
+        <button type="button" id="appointVice">Appoint Vice Chair</button>
+      </div>
+    </div>
+    <div class="card role-panel" data-role-panel="treasurer">
+      <div class="stat"><span>Treasurer</span><strong id="treasurerLabel">${treasurer}</strong></div>
+      <p class="subtle">Treasurer manages the tithe and payouts for ${selectedParty}.</p>
+      <div class="inline-actions" style="margin-top: 0.4rem;">
+        <button type="button" id="appointTreasurer">Appoint Treasurer</button>
+      </div>
+    </div>
+    <div class="card executive-only">
+      <h4>Party treasury & tithe</h4>
+      <div class="stat"><span>Political capital</span><strong id="treasuryBalance">${currency(treasury)}</strong></div>
+      <div class="label-row" style="margin-top: 0.6rem;">
+        <label for="partyRate">Party tithe (max 30%)</label>
+        <input id="partyRate" type="range" min="0" max="30" value="10" />
+        <span id="partyRateLabel">10%</span>
+      </div>
+      <form id="withdrawForm">
+        <label for="withdrawAmount">Withdraw to personal account</label>
+        <input id="withdrawAmount" type="number" min="0" step="100" />
+        <div class="inline-actions" style="margin-top: 0.4rem;">
+          <button type="submit" style="width: auto;">Withdraw</button>
+          <div class="subtle">Only executives can pull funds into their own account.</div>
+        </div>
+      </form>
+    </div>
+  `;
+  container.querySelectorAll("[data-role-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      container.querySelectorAll("[data-role-tab]").forEach((btn) => btn.classList.remove("active"));
+      container.querySelectorAll(".role-panel").forEach((panel) => panel.classList.remove("active"));
+      tab.classList.add("active");
+      container.querySelector(`[data-role-panel='${tab.dataset.roleTab}']`)?.classList.add("active");
+    });
+  });
+  setupParty();
+  renderTreasury();
+}
+
 function setupMoneyTransfers() {
   const form = document.getElementById("sendMoneyForm");
   if (!form) return;
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!ensureProfile("to send funds")) return;
-    const recipient = document.getElementById("recipient").value;
+    const recipientInput = document.getElementById("recipient").value;
+    const recipient = resolveRealPlayer(recipientInput);
+    if (!recipient) return alert("Only real, registered players can receive funds.");
     const amount = Number(document.getElementById("amount").value || 0);
+    if (amount <= 0) return alert("Enter an amount to send.");
     if (amount > player.capital) return alert("Not enough capital.");
     player.capital -= amount;
-    moneyTransfers.unshift({ recipient, amount, date: new Date() });
+    moneyTransfers.unshift({ recipient: recipient.name, amount, date: new Date(), username: recipient.username });
     renderProfile();
     renderMoneyLog();
     saveState();
@@ -1586,7 +1800,8 @@ function renderMoneyLog() {
     .slice(0, 5)
     .map((t) => {
       const timestamp = new Date(t.date);
-      return `<div>${currency(t.amount)} sent to <strong>${t.recipient}</strong> — ${timestamp.toLocaleTimeString()}</div>`;
+      const handle = t.username ? ` (@${t.username})` : "";
+      return `<div>${currency(t.amount)} sent to <strong>${t.recipient}${handle}</strong> — ${timestamp.toLocaleTimeString()}</div>`;
     })
     .join("");
 }
@@ -1702,11 +1917,11 @@ function enforceProfileGate() {
 
 function init() {
   loadState();
-  seedPoliticians();
   const gatePassed = enforceProfileGate();
   if (gatePassed === false) return;
   populateStates();
   renderProfile();
+  renderPlayerSuggestions();
   renderMap();
   renderPartiesPage();
   renderStatePage();
@@ -1748,6 +1963,9 @@ function init() {
   if (loginForm) loginForm.addEventListener("submit", handleLogin);
   const company = document.getElementById("companyForm");
   if (company) company.addEventListener("submit", createCompany);
+
+  processPayouts();
+  setInterval(processPayouts, 60000);
 
   setInterval(() => {
     races.forEach((race) => {
