@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>House of Representatives — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="house">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>House of Representatives</h1>
+      <p class="subtitle">Advance bills through the House and monitor active votes.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link active" href="house.html">House</a>
+      <a class="nav-link" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>House agenda</h2>
+          <p class="subtle">Only Representatives can vote or introduce bills here. Votes are open for 24 hours.</p>
+        </div>
+        <div class="badge">House → Senate → President</div>
+      </div>
+      <div id="houseBillList" class="cards" data-bill-list data-scope="house"></div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

@@ -17,6 +17,9 @@
       <a class="nav-link" href="index.html">Home</a>
       <a class="nav-link active" href="profile.html">Profile</a>
       <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="house.html">House</a>
+      <a class="nav-link" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -55,9 +58,9 @@
           <div>
             <label for="class">Economic class</label>
             <select id="class" name="class">
-              <option value="poor">Poor (₡10,000 start)</option>
-              <option value="middle">Middle (₡100,000 start)</option>
-              <option value="rich">Rich (₡1,000,000 start)</option>
+              <option value="poor">Poor ($10,000 start)</option>
+              <option value="middle">Middle ($100,000 start)</option>
+              <option value="rich">Rich ($1,000,000 start)</option>
             </select>
           </div>
           <div>
@@ -114,10 +117,10 @@
             </div>
             <div class="card" style="min-width: 220px;">
               <h4>Financial snapshot</h4>
-              <div class="stat"><span>Capital</span><strong id="capitalStat">₡0</strong></div>
-              <div class="stat"><span>Political capital</span><strong id="polCapitalStat">₱0</strong></div>
-              <div class="stat"><span>Capital / hr</span><strong id="capIncomeStat">₡0</strong></div>
-              <div class="stat"><span>Political / hr</span><strong id="polIncomeStat">₱0</strong></div>
+              <div class="stat"><span>Capital</span><strong id="capitalStat">$0</strong></div>
+              <div class="stat"><span>Political capital</span><strong id="polCapitalStat">$0</strong></div>
+              <div class="stat"><span>Capital / hr</span><strong id="capIncomeStat">$0</strong></div>
+              <div class="stat"><span>Political / hr</span><strong id="polIncomeStat">$0</strong></div>
               <div class="inline-actions">
                 <button type="button" id="convertCapital">Convert 10% to political</button>
                 <button type="button" id="boostCapital">Improve capital income</button>
@@ -177,54 +180,6 @@
       </div>
       <div id="raceContainer" class="cards"></div>
       <div class="notice" id="noRaceNotice">Not in a race yet. Join from any state page.</div>
-    </section>
-
-    <section class="tab-panel active">
-      <div class="panel-header">
-        <div>
-          <h2>Companies</h2>
-          <p class="subtle">Build corporations, earn dividends, and wield economic sway.</p>
-        </div>
-        <div class="badge" id="industrialAvg">Industrial Avg: 12,450</div>
-      </div>
-      <div class="two-col">
-        <div class="card">
-          <h4>Create a company (₡1,000,000)</h4>
-          <form id="companyForm">
-            <label for="companyName">Company name</label>
-            <input id="companyName" required placeholder="Atlas Robotics" />
-            <label for="companyCEO">CEO (title shows on profile)</label>
-            <input id="companyCEO" placeholder="Your name" />
-            <label for="companyIndustry">Industry</label>
-            <select id="companyIndustry">
-              <option>Technology</option>
-              <option>Energy</option>
-              <option>Healthcare</option>
-              <option>Finance</option>
-              <option>Manufacturing</option>
-              <option>Logistics</option>
-            </select>
-            <label for="companySalary">CEO salary</label>
-            <input id="companySalary" type="number" min="0" step="1000" placeholder="100000" />
-            <label for="companyShares">Shares to create (max 1,000,000)</label>
-            <input id="companyShares" type="number" min="1000" max="1000000" step="1000" value="100000" />
-            <label for="companyEmployees">Employees</label>
-            <input id="companyEmployees" type="number" min="0" step="10" value="250" />
-            <label for="companyBio">Company bio</label>
-            <textarea id="companyBio" placeholder="Mission, differentiation, and growth thesis"></textarea>
-            <label for="companyLogo">Logo</label>
-            <input id="companyLogo" type="file" accept="image/*" />
-            <div class="inline-actions" style="margin-top: 0.5rem;">
-              <button type="submit" style="width: auto;">Create company</button>
-              <div class="subtle">Max 5 companies per CEO. Shares start at $10 unless income is $1 or less.</div>
-            </div>
-          </form>
-        </div>
-        <div class="card">
-          <h4>Portfolio</h4>
-          <div id="companyList" class="cards"></div>
-        </div>
-      </div>
     </section>
   </main>
 

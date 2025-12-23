@@ -1,4 +1,5 @@
 const storageKey = "civic-strategy-state";
+const VOTE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const economicClasses = {
   poor: { capital: 10000, capitalIncome: 10000 },
@@ -6,20 +7,66 @@ const economicClasses = {
   rich: { capital: 1000000, capitalIncome: 15000 },
 };
 
-const stateData = [
-  { code: "AL", name: "Alabama", flag: "🇺🇸", governor: "E. Lyons", senators: ["C. Walker", "D. White"], houseSeats: 7, senateClass: 1 },
-  { code: "AZ", name: "Arizona", flag: "🇺🇸", governor: "R. Chavez", senators: ["A. Miles", "P. Ora"], houseSeats: 9, senateClass: 3 },
-  { code: "CA", name: "California", flag: "🇺🇸", governor: "S. Chen", senators: ["A. Ruiz", "T. Sinclair"], houseSeats: 52, senateClass: 1 },
-  { code: "FL", name: "Florida", flag: "🇺🇸", governor: "L. Cortez", senators: ["J. Pruitt", "E. Harper"], houseSeats: 28, senateClass: 3 },
-  { code: "GA", name: "Georgia", flag: "🇺🇸", governor: "K. Ali", senators: ["R. Boone", "M. Liao"], houseSeats: 14, senateClass: 2 },
-  { code: "IL", name: "Illinois", flag: "🇺🇸", governor: "A. Ibrahim", senators: ["I. Ortega", "S. Patel"], houseSeats: 17, senateClass: 2 },
-  { code: "NY", name: "New York", flag: "🇺🇸", governor: "G. Hudson", senators: ["B. Roman", "J. Park"], houseSeats: 26, senateClass: 1 },
-  { code: "NC", name: "North Carolina", flag: "🇺🇸", governor: "K. Imani", senators: ["J. Morton", "Z. Abdul"], houseSeats: 14, senateClass: 2 },
-  { code: "OH", name: "Ohio", flag: "🇺🇸", governor: "C. Patel", senators: ["P. Dawson", "K. Malik"], houseSeats: 15, senateClass: 3 },
-  { code: "TX", name: "Texas", flag: "🇺🇸", governor: "A. Estrada", senators: ["B. Wyatt", "R. Cooper"], houseSeats: 38, senateClass: 1 },
-  { code: "VA", name: "Virginia", flag: "🇺🇸", governor: "N. Albright", senators: ["S. Mendez", "A. Tully"], houseSeats: 11, senateClass: 2 },
-  { code: "WA", name: "Washington", flag: "🇺🇸", governor: "D. Sandoval", senators: ["M. Paige", "R. Kim"], houseSeats: 10, senateClass: 3 },
+const baseStates = [
+  { code: "AL", name: "Alabama", houseSeats: 7 },
+  { code: "AK", name: "Alaska", houseSeats: 1 },
+  { code: "AZ", name: "Arizona", houseSeats: 9 },
+  { code: "AR", name: "Arkansas", houseSeats: 4 },
+  { code: "CA", name: "California", houseSeats: 52 },
+  { code: "CO", name: "Colorado", houseSeats: 8 },
+  { code: "CT", name: "Connecticut", houseSeats: 5 },
+  { code: "DE", name: "Delaware", houseSeats: 1 },
+  { code: "FL", name: "Florida", houseSeats: 28 },
+  { code: "GA", name: "Georgia", houseSeats: 14 },
+  { code: "HI", name: "Hawaii", houseSeats: 2 },
+  { code: "ID", name: "Idaho", houseSeats: 2 },
+  { code: "IL", name: "Illinois", houseSeats: 17 },
+  { code: "IN", name: "Indiana", houseSeats: 9 },
+  { code: "IA", name: "Iowa", houseSeats: 4 },
+  { code: "KS", name: "Kansas", houseSeats: 4 },
+  { code: "KY", name: "Kentucky", houseSeats: 6 },
+  { code: "LA", name: "Louisiana", houseSeats: 6 },
+  { code: "ME", name: "Maine", houseSeats: 2 },
+  { code: "MD", name: "Maryland", houseSeats: 8 },
+  { code: "MA", name: "Massachusetts", houseSeats: 9 },
+  { code: "MI", name: "Michigan", houseSeats: 13 },
+  { code: "MN", name: "Minnesota", houseSeats: 8 },
+  { code: "MS", name: "Mississippi", houseSeats: 4 },
+  { code: "MO", name: "Missouri", houseSeats: 8 },
+  { code: "MT", name: "Montana", houseSeats: 2 },
+  { code: "NE", name: "Nebraska", houseSeats: 3 },
+  { code: "NV", name: "Nevada", houseSeats: 4 },
+  { code: "NH", name: "New Hampshire", houseSeats: 2 },
+  { code: "NJ", name: "New Jersey", houseSeats: 12 },
+  { code: "NM", name: "New Mexico", houseSeats: 3 },
+  { code: "NY", name: "New York", houseSeats: 26 },
+  { code: "NC", name: "North Carolina", houseSeats: 14 },
+  { code: "ND", name: "North Dakota", houseSeats: 1 },
+  { code: "OH", name: "Ohio", houseSeats: 15 },
+  { code: "OK", name: "Oklahoma", houseSeats: 5 },
+  { code: "OR", name: "Oregon", houseSeats: 6 },
+  { code: "PA", name: "Pennsylvania", houseSeats: 17 },
+  { code: "RI", name: "Rhode Island", houseSeats: 2 },
+  { code: "SC", name: "South Carolina", houseSeats: 7 },
+  { code: "SD", name: "South Dakota", houseSeats: 1 },
+  { code: "TN", name: "Tennessee", houseSeats: 9 },
+  { code: "TX", name: "Texas", houseSeats: 38 },
+  { code: "UT", name: "Utah", houseSeats: 4 },
+  { code: "VT", name: "Vermont", houseSeats: 1 },
+  { code: "VA", name: "Virginia", houseSeats: 11 },
+  { code: "WA", name: "Washington", houseSeats: 10 },
+  { code: "WV", name: "West Virginia", houseSeats: 2 },
+  { code: "WI", name: "Wisconsin", houseSeats: 8 },
+  { code: "WY", name: "Wyoming", houseSeats: 1 },
 ];
+
+const stateData = baseStates.map((state, idx) => ({
+  ...state,
+  flag: "🇺🇸",
+  governor: "Vacant",
+  senators: ["Vacant seat A", "Vacant seat B"],
+  senateClass: (idx % 3) + 1,
+}));
 
 const topics = {
   Health: ["Abortion", "Drug Pricing", "Medicare"],
@@ -53,7 +100,7 @@ let player = {
   politicalCapital: 0,
   capitalIncome: 0,
   politicalIncome: 10000,
-  office: null,
+  office: "Citizen",
   partyRole: "Member",
   description: "",
   avatar: "",
@@ -65,43 +112,12 @@ let bills = [];
 let moneyTransfers = [];
 let primaryOpen = true;
 let treasury = 0;
+let partyLeadership = { chair: null, vice: null, treasurer: null };
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
 
-function saveState() {
-  const payload = { player, races, companies, bills, moneyTransfers, primaryOpen, treasury };
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(payload));
-  } catch (err) {
-    console.warn("Unable to persist state", err);
-  }
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    player = { ...player, ...(parsed.player || {}) };
-    races = parsed.races || [];
-    companies = parsed.companies || [];
-    bills = parsed.bills || [];
-    moneyTransfers = parsed.moneyTransfers || [];
-    primaryOpen = parsed.primaryOpen ?? true;
-    treasury = parsed.treasury ?? 0;
-  } catch (err) {
-    console.warn("Unable to load saved state", err);
-  }
-}
-
-function setIfExists(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
-  return el;
-}
-
-function currency(val, symbol = "₡") {
-  return `${symbol}${Number(val).toLocaleString()}`;
+function currency(val, symbol = "$") {
+  return `${symbol}${Number(val || 0).toLocaleString()}`;
 }
 
 function timeUntil(hours) {
@@ -113,6 +129,85 @@ function timeUntil(hours) {
   return `${hrs}h ${mins}m`;
 }
 
+function formatCountdown(timestamp) {
+  if (!timestamp) return "No active vote";
+  const diff = timestamp - Date.now();
+  if (diff <= 0) return "Voting closed";
+  const hrs = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  return `${hrs}h ${mins}m remaining`;
+}
+
+function saveState() {
+  const payload = { player, races, companies, bills, moneyTransfers, primaryOpen, treasury, partyLeadership };
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("Unable to persist state", err);
+  }
+}
+
+function normalizeBill(bill) {
+  const normalized = { ...bill };
+  normalized.chamber = bill.chamber || "House";
+  normalized.topic = bill.topic || "General";
+  normalized.subtopic = bill.subtopic || "General";
+  normalized.outcome = bill.outcome || "";
+  normalized.currentChamber = bill.currentChamber || normalized.chamber;
+  normalized.nextChamber = bill.nextChamber || (normalized.chamber === "House" ? "Senate" : "House");
+  normalized.stage = bill.stage || `${normalized.currentChamber} Vote`;
+  normalized.status = bill.status || `Pending ${normalized.stage}`;
+  normalized.votes = bill.votes || { aye: 0, nay: 0 };
+  normalized.playerVote = bill.playerVote || null;
+  normalized.introducedAt = bill.introducedAt || Date.now();
+  normalized.expiresAt = typeof bill.expiresAt === "number" ? bill.expiresAt : (normalized.stage.includes("Vote") ? Date.now() + VOTE_WINDOW_MS : null);
+  normalized.history = bill.history || [];
+  return normalized;
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    player = { ...player, ...(parsed.player || {}) };
+    races = parsed.races || [];
+    companies = parsed.companies || [];
+    bills = (parsed.bills || []).map((bill) => normalizeBill(bill));
+    moneyTransfers = parsed.moneyTransfers || [];
+    primaryOpen = parsed.primaryOpen ?? true;
+    treasury = parsed.treasury ?? 0;
+    partyLeadership = parsed.partyLeadership || { chair: null, vice: null, treasurer: null };
+  } catch (err) {
+    console.warn("Unable to load saved state", err);
+  }
+}
+
+function setIfExists(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+  return el;
+}
+
+function ensureProfile(reason = "to continue") {
+  if (player.email) return true;
+  alert(`Create a profile ${reason}. Redirecting now.`);
+  window.location.href = "profile.html";
+  return false;
+}
+
+function isHouseMember() {
+  return player.office === "Representative";
+}
+
+function isSenator() {
+  return player.office === "Senator";
+}
+
+function isPresident() {
+  return player.office === "President";
+}
+
 function hydrateLanding() {
   if (player.email) {
     setIfExists("heroWelcome", `Welcome back, ${player.name || "candidate"}`);
@@ -122,7 +217,7 @@ function hydrateLanding() {
     setIfExists("heroPersona", "Design your avatar and alliances");
   }
   setIfExists("heroCapital", currency(player.capital));
-  setIfExists("heroPol", currency(player.politicalCapital, "₱"));
+  setIfExists("heroPol", currency(player.politicalCapital));
 }
 
 function populateStates() {
@@ -143,11 +238,11 @@ function renderProfile() {
   nameEl.textContent = player.name || "No profile yet";
   setIfExists("profileState", player.state ? `${player.state} — ${player.party}` : "Home state will appear here.");
   setIfExists("capitalStat", currency(player.capital));
-  setIfExists("polCapitalStat", currency(player.politicalCapital, "₱"));
+  setIfExists("polCapitalStat", currency(player.politicalCapital));
   setIfExists("capIncomeStat", currency(player.capitalIncome));
-  setIfExists("polIncomeStat", currency(player.politicalIncome, "₱"));
+  setIfExists("polIncomeStat", currency(player.politicalIncome));
   setIfExists("officeLabel", player.office || "Citizen");
-  setIfExists("partyRole", player.partyRole);
+  setIfExists("partyRole", player.partyRole || "Member");
   const badge = document.getElementById("officeBadge");
   if (badge) badge.textContent = player.office ? player.office : "Unseated — no office yet";
   const tags = [player.economicClass, player.religion, player.heritage, player.party]
@@ -161,6 +256,7 @@ function renderProfile() {
     if (avatar) avatar.innerHTML = `<img src="${player.avatar}" alt="avatar" />`;
   }
   hydrateLanding();
+  renderPartyLeadership();
 }
 
 function handleSignup(e) {
@@ -181,6 +277,8 @@ function handleSignup(e) {
     politicalCapital: 0,
     capitalIncome: stats.capitalIncome,
     politicalIncome: 10000,
+    office: "Citizen",
+    partyRole: "Member",
   };
   const file = data.get("image");
   if (file && file.size) {
@@ -219,7 +317,9 @@ function getElectionTiming(state) {
 }
 
 function showState(state) {
+  if (!ensureProfile("to join races")) return;
   const details = document.getElementById("stateDetails");
+  if (!details) return;
   details.style.display = "block";
   const racesHtml = getElectionTiming(state)
     .map(
@@ -235,9 +335,9 @@ function showState(state) {
         <p class="subtle">Governor: ${state.governor} • Senator 1: ${state.senators[0]} • Senator 2: ${state.senators[1]}</p>
         <p class="subtle">House allocation: ${state.houseSeats} seats</p>
         <div class="inline-actions">
-          <button type="button" onclick="signUpRace('${state.code}', 'House')">Sign up for election (₱10,000)</button>
-          <button type="button" onclick="signUpRace('${state.code}', 'Senate')">Join Senate race (₱10,000)</button>
-          <button type="button" onclick="signUpRace('${state.code}', 'Governor')">Join Governor race (₱10,000)</button>
+          <button type="button" onclick="signUpRace('${state.code}', 'House')">Sign up for election ($10,000)</button>
+          <button type="button" onclick="signUpRace('${state.code}', 'Senate')">Join Senate race ($10,000)</button>
+          <button type="button" onclick="signUpRace('${state.code}', 'Governor')">Join Governor race ($10,000)</button>
         </div>
       </div>
       <div class="card" style="min-width: 220px;">
@@ -252,8 +352,8 @@ function showState(state) {
 
 function renderRace() {
   const container = document.getElementById("raceContainer");
-  if (!container) return;
   const notice = document.getElementById("noRaceNotice");
+  if (!container) return;
   container.innerHTML = "";
   if (!races.length) {
     if (notice) notice.style.display = "block";
@@ -261,6 +361,7 @@ function renderRace() {
   }
   if (notice) notice.style.display = "none";
   races.forEach((race, idx) => {
+    const canSwearIn = race.polling >= 50 && (race.stage === "General" || race.type === "President");
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
@@ -269,10 +370,11 @@ function renderRace() {
       <div class="stat"><span>Polling</span><strong>${race.polling}%</strong></div>
       <div class="stat"><span>Demographics</span><strong>${race.demographicPulse}</strong></div>
       <div class="inline-actions">
-        <button type="button" onclick="buyPoll(${idx})">Buy poll (-₱5,000)</button>
-        <button type="button" onclick="attackAd(${idx})">Attack ad (-₱7,500)</button>
-        <button type="button" onclick="boostSelf(${idx})">Boost self (-₱5,000)</button>
+        <button type="button" onclick="buyPoll(${idx})">Buy poll (-$5,000)</button>
+        <button type="button" onclick="attackAd(${idx})">Attack ad (-$7,500)</button>
+        <button type="button" onclick="boostSelf(${idx})">Boost self (-$5,000)</button>
         <button type="button" onclick="withdrawRace(${idx})">Withdraw</button>
+        ${canSwearIn ? `<button type="button" onclick="swearIntoOffice(${idx})">Swear into office</button>` : ""}
       </div>
     `;
     container.appendChild(card);
@@ -280,8 +382,9 @@ function renderRace() {
 }
 
 function signUpRace(state, type) {
+  if (!ensureProfile("to file for races")) return;
   if (player.politicalCapital < 10000) {
-    alert("You need ₱10,000 political capital to enter.");
+    alert("You need $10,000 political capital to enter.");
     return;
   }
   if (races.length && type !== "President") {
@@ -335,12 +438,24 @@ function withdrawRace(idx) {
   saveState();
 }
 
+function swearIntoOffice(idx) {
+  const race = races[idx];
+  if (race.polling < 50) return alert("You need majority polling to claim victory.");
+  const officeMap = { House: "Representative", Senate: "Senator", Governor: "Governor", President: "President" };
+  player.office = officeMap[race.type] || "Citizen";
+  player.state = race.state;
+  player.partyRole = player.partyRole || "Member";
+  renderProfile();
+  saveState();
+}
+
 function setupIncomeButtons() {
   const convert = document.getElementById("convertCapital");
   const boostCap = document.getElementById("boostCapital");
   const boostPol = document.getElementById("boostPol");
   if (convert)
     convert.addEventListener("click", () => {
+      if (!ensureProfile("before converting capital")) return;
       const converted = player.capital * 0.1;
       player.capital -= converted;
       player.politicalCapital += converted;
@@ -349,7 +464,8 @@ function setupIncomeButtons() {
     });
   if (boostCap)
     boostCap.addEventListener("click", () => {
-      if (player.capital < 5000) return alert("Need ₡5,000 to invest.");
+      if (!ensureProfile("before investing")) return;
+      if (player.capital < 5000) return alert("Need $5,000 to invest.");
       player.capital -= 5000;
       player.capitalIncome += 1200;
       renderProfile();
@@ -357,7 +473,8 @@ function setupIncomeButtons() {
     });
   if (boostPol)
     boostPol.addEventListener("click", () => {
-      if (player.politicalCapital < 3000) return alert("Need ₱3,000 to train operatives.");
+      if (!ensureProfile("before training operatives")) return;
+      if (player.politicalCapital < 3000) return alert("Need $3,000 to train operatives.");
       player.politicalCapital -= 3000;
       player.politicalIncome += 1200;
       renderProfile();
@@ -390,8 +507,9 @@ function renderCompanies() {
 
 function createCompany(e) {
   e.preventDefault();
+  if (!ensureProfile("to launch a company")) return;
   if (companies.length >= 5) return alert("CEO cap reached (5).");
-  if (player.capital < 1000000) return alert("Need ₡1,000,000 capital to form a company.");
+  if (player.capital < 1000000) return alert("Need $1,000,000 capital to form a company.");
   const shares = Number(document.getElementById("companyShares").value || 100000);
   const income = Math.max(15000, shares / 10 + Math.random() * 20000);
   const expenses = income * 0.35;
@@ -416,6 +534,7 @@ function createCompany(e) {
 }
 
 function issueShares(idx) {
+  if (!ensureProfile("to adjust shares")) return;
   const more = Number(prompt("New shares to mint (current price must exceed $1)", 10000) || 0);
   if (!more) return;
   const company = companies[idx];
@@ -427,6 +546,7 @@ function issueShares(idx) {
 }
 
 function sellShares(idx) {
+  if (!ensureProfile("to sell shares")) return;
   const company = companies[idx];
   const qty = Number(prompt("Sell how many shares?", Math.round(company.shares * 0.1)) || 0);
   if (!qty || qty > company.shares) return;
@@ -440,6 +560,7 @@ function sellShares(idx) {
 }
 
 function setDividend(idx) {
+  if (!ensureProfile("to set dividends")) return;
   const rate = Number(prompt("Dividend per share", companies[idx].dividend || 0) || 0);
   companies[idx].dividend = rate;
   renderCompanies();
@@ -449,27 +570,34 @@ function setDividend(idx) {
 function setupFederal() {
   const table = document.getElementById("cabinetTable");
   if (!table) return;
-  table.innerHTML = "<tr><th>Role</th><th>Holder</th></tr>" +
+  table.innerHTML =
+    "<tr><th>Role</th><th>Holder</th></tr>" +
     cabinet
       .map((slot) => `<tr><td>${slot.role}</td><td>${slot.holder}</td></tr>`)
       .join("");
-  document.getElementById("registerPresident").addEventListener("click", () => {
-    if (player.party === "Independents") {
-      alert("Independents cannot run in primaries.");
-      return;
-    }
-    signUpRace("USA", "President");
-    document.getElementById("presStatus").textContent = "Registered";
-    saveState();
-  });
-  document.getElementById("spendState").addEventListener("click", () => {
-    if (!races.find((r) => r.type === "President")) return alert("Register first.");
-    if (player.capital < 25000) return alert("Spend requires ₡25,000.");
-    player.capital -= 25000;
-    alert("You improved odds in a battleground.");
-    renderProfile();
-    saveState();
-  });
+  const registerBtn = document.getElementById("registerPresident");
+  if (registerBtn)
+    registerBtn.addEventListener("click", () => {
+      if (!ensureProfile("to register")) return;
+      if (player.party === "Independents") {
+        alert("Independents cannot run in primaries.");
+        return;
+      }
+      signUpRace("USA", "President");
+      setIfExists("presStatus", "Registered");
+      saveState();
+    });
+  const spendBtn = document.getElementById("spendState");
+  if (spendBtn)
+    spendBtn.addEventListener("click", () => {
+      if (!ensureProfile("before spending capital")) return;
+      if (!races.find((r) => r.type === "President")) return alert("Register first.");
+      if (player.capital < 25000) return alert("Spend requires $25,000.");
+      player.capital -= 25000;
+      alert("You improved odds in a battleground.");
+      renderProfile();
+      saveState();
+    });
   setIfExists("primaryStage", primaryOpen ? "Primaries are open (Independents cannot run)" : "General election underway");
 }
 
@@ -483,57 +611,108 @@ function advanceGeneral() {
   saveState();
 }
 
-function renderBills() {
-  const list = document.getElementById("billList");
-  if (!list) return;
-  list.innerHTML = "";
-  bills.forEach((bill, idx) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.innerHTML = `
-      <h4>${bill.title}</h4>
-      <p class="subtle">${bill.chamber} • ${bill.topic} / ${bill.subtopic} • Outcome: ${bill.outcome}</p>
-      <div class="stat"><span>Status</span><strong>${bill.status}</strong></div>
-      <div class="inline-actions">
-        <button type="button" onclick="advanceBill(${idx})">Advance</button>
-        <button type="button" onclick="vetoBill(${idx})">Veto</button>
-      </div>
-    `;
-    list.appendChild(card);
-  });
+function getBillChamberForStage(bill) {
+  if (bill.stage === "House Vote") return "House";
+  if (bill.stage === "Senate Vote") return "Senate";
+  return bill.currentChamber || bill.chamber;
+}
+
+function evaluateBill(bill) {
+  if (!bill.stage.includes("Vote") || !bill.expiresAt) return;
+  if (Date.now() < bill.expiresAt) return;
+  const chamber = getBillChamberForStage(bill);
+  const passed = bill.votes.aye > bill.votes.nay;
+  bill.history.push(`${chamber} vote closed ${bill.votes.aye}-${bill.votes.nay}`);
+  if (!passed) {
+    bill.stage = "Failed";
+    bill.status = `Failed in the ${chamber} (${bill.votes.aye}-${bill.votes.nay})`;
+    bill.expiresAt = null;
+    return;
+  }
+
+  if (bill.currentChamber === bill.chamber) {
+    bill.currentChamber = bill.nextChamber;
+    bill.stage = `${bill.nextChamber} Vote`;
+    bill.status = `Sent to the ${bill.nextChamber} for a 24h vote`;
+    bill.votes = { aye: 0, nay: 0 };
+    bill.playerVote = null;
+    bill.expiresAt = Date.now() + VOTE_WINDOW_MS;
+  } else {
+    bill.stage = "Awaiting President";
+    bill.status = "Awaiting presidential signature or veto";
+    bill.expiresAt = null;
+  }
+}
+
+function castVote(idx, side) {
+  const bill = bills[idx];
+  if (!ensureProfile("to vote")) return;
+  const chamber = getBillChamberForStage(bill);
+  if (chamber === "House" && !isHouseMember()) return alert("Only House members can vote on House bills.");
+  if (chamber === "Senate" && !isSenator()) return alert("Only Senators can vote on Senate bills.");
+  if (!bill.stage.includes("Vote")) return alert("This bill is not in an active vote.");
+  if (Date.now() > (bill.expiresAt || 0)) {
+    evaluateBill(bill);
+    renderBillContainers();
+    saveState();
+    return;
+  }
+  if (bill.playerVote) return alert("You already cast a vote on this bill.");
+  bill.votes[side] += 1;
+  bill.playerVote = side;
+  renderBillContainers();
+  saveState();
 }
 
 function submitBill() {
+  if (!ensureProfile("to introduce legislation")) return;
+  const chamber = document.getElementById("billChamber").value;
+  if (chamber === "House" && !isHouseMember()) return alert("Only House members can introduce House bills.");
+  if (chamber === "Senate" && !isSenator()) return alert("Only Senators can introduce Senate bills.");
   const topic = document.getElementById("billTopic").value;
   const subtopic = document.getElementById("billSubtopic").value;
-  const chamber = document.getElementById("billChamber").value;
   const title = `${topic}: ${subtopic}`;
-  bills.push({
+  const bill = normalizeBill({
     title,
     chamber,
     topic,
     subtopic,
     outcome: document.getElementById("billOutcome").value,
     status: `Filed in the ${chamber}`,
+    stage: `${chamber} Vote`,
+    votes: { aye: 0, nay: 0 },
+    expiresAt: Date.now() + VOTE_WINDOW_MS,
+    history: [
+      `${chamber} filed by ${player.name || "Member"}`,
+    ],
   });
-  renderBills();
+  bills.unshift(bill);
+  renderBillContainers();
   saveState();
 }
 
-function advanceBill(idx) {
+function signBill(idx) {
   const bill = bills[idx];
-  if (bill.status.includes("Filed")) bill.status = "Passed chamber — sent to other";
-  else if (bill.status.includes("other")) bill.status = "Passed both — awaiting President";
-  else if (bill.status.includes("President")) bill.status = "Signed into law";
-  renderBills();
+  if (!ensureProfile("to sign bills")) return;
+  if (!isPresident()) return alert("Only the President can sign bills.");
+  if (bill.stage !== "Awaiting President") return alert("This bill is not ready for signature.");
+  bill.stage = "Enacted";
+  bill.status = "Signed into law";
+  bill.history.push("Signed by the President");
   saveState();
+  renderBillContainers();
 }
 
 function vetoBill(idx) {
   const bill = bills[idx];
-  bill.status = "Vetoed — return to origin for override";
-  renderBills();
+  if (!ensureProfile("to veto bills")) return;
+  if (!isPresident()) return alert("Only the President can veto bills.");
+  if (bill.stage !== "Awaiting President") return alert("This bill is not eligible for veto.");
+  bill.stage = "Vetoed";
+  bill.status = "Vetoed — returned to origin";
+  bill.history.push("Vetoed by the President");
   saveState();
+  renderBillContainers();
 }
 
 function populateBillTopics() {
@@ -554,7 +733,7 @@ function populateBillTopics() {
 
 function renderSubtopics(topic, select) {
   select.innerHTML = "";
-  topics[topic].forEach((sub) => {
+  (topics[topic] || []).forEach((sub) => {
     const opt = document.createElement("option");
     opt.value = sub;
     opt.textContent = sub;
@@ -579,37 +758,76 @@ function setupParty() {
   const label = document.getElementById("partyRateLabel");
   if (!rate || !label) return;
   rate.addEventListener("input", () => {
+    if (!ensureProfile("to adjust party dues")) return;
+    if (partyLeadership.chair !== player.name) {
+      alert("Only the chair can set the party tithe.");
+      rate.value = rate.dataset.last || rate.value;
+      return;
+    }
     label.textContent = `${rate.value}%`;
+    rate.dataset.last = rate.value;
     treasury += Number(rate.value) * 100;
     renderTreasury();
     saveState();
   });
-  document.getElementById("electChair").addEventListener("click", () => {
-    const name = document.getElementById("chairInput").value || "Chair";
-    document.getElementById("chairLabel").textContent = name;
-  });
-  document.getElementById("appointVice").addEventListener("click", () => {
-    const name = document.getElementById("chairInput").value || "Vice";
-    document.getElementById("viceLabel").textContent = name;
-  });
-  document.getElementById("appointTreasurer").addEventListener("click", () => {
-    const name = document.getElementById("chairInput").value || "Treasurer";
-    document.getElementById("treasurerLabel").textContent = name;
-  });
-  document.getElementById("withdrawForm").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const amount = Number(document.getElementById("withdrawAmount").value || 0);
-    if (amount > treasury) return alert("Insufficient party funds.");
-    treasury -= amount;
-    player.politicalCapital += amount;
-    renderTreasury();
-    renderProfile();
-    saveState();
-  });
+  const chairBtn = document.getElementById("electChair");
+  if (chairBtn)
+    chairBtn.addEventListener("click", () => {
+      if (!ensureProfile("to run the party")) return;
+      const name = document.getElementById("chairInput").value || player.name;
+      if (partyLeadership.chair && partyLeadership.chair !== player.name) return alert("Only the current chair can change leadership.");
+      partyLeadership.chair = name;
+      if (name === player.name) player.partyRole = "Chair";
+      renderPartyLeadership();
+      saveState();
+    });
+  const viceBtn = document.getElementById("appointVice");
+  if (viceBtn)
+    viceBtn.addEventListener("click", () => {
+      if (!ensureProfile("to appoint")) return;
+      if (partyLeadership.chair !== player.name) return alert("Only the chair can appoint the Vice-Chair.");
+      const name = document.getElementById("chairInput").value || "Vice";
+      partyLeadership.vice = name;
+      if (name === player.name) player.partyRole = "Vice-Chair";
+      renderPartyLeadership();
+      saveState();
+    });
+  const treasurerBtn = document.getElementById("appointTreasurer");
+  if (treasurerBtn)
+    treasurerBtn.addEventListener("click", () => {
+      if (!ensureProfile("to appoint")) return;
+      if (partyLeadership.chair !== player.name) return alert("Only the chair can appoint the Treasurer.");
+      const name = document.getElementById("chairInput").value || "Treasurer";
+      partyLeadership.treasurer = name;
+      if (name === player.name) player.partyRole = "Treasurer";
+      renderPartyLeadership();
+      saveState();
+    });
+  const withdrawForm = document.getElementById("withdrawForm");
+  if (withdrawForm)
+    withdrawForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (!ensureProfile("to withdraw funds")) return;
+      if (![partyLeadership.treasurer, partyLeadership.chair].includes(player.name)) return alert("Only the chair or treasurer can withdraw.");
+      const amount = Number(document.getElementById("withdrawAmount").value || 0);
+      if (amount > treasury) return alert("Insufficient party funds.");
+      treasury -= amount;
+      player.politicalCapital += amount;
+      renderTreasury();
+      renderProfile();
+      saveState();
+    });
+}
+
+function renderPartyLeadership() {
+  setIfExists("chairLabel", partyLeadership.chair || "Vacant");
+  setIfExists("viceLabel", partyLeadership.vice || "Vacant");
+  setIfExists("treasurerLabel", partyLeadership.treasurer || "Vacant");
+  renderTreasury();
 }
 
 function renderTreasury() {
-  setIfExists("treasuryBalance", currency(treasury, "₱"));
+  setIfExists("treasuryBalance", currency(treasury));
 }
 
 function setupMoneyTransfers() {
@@ -617,6 +835,7 @@ function setupMoneyTransfers() {
   if (!form) return;
   form.addEventListener("submit", (e) => {
     e.preventDefault();
+    if (!ensureProfile("to send funds")) return;
     const recipient = document.getElementById("recipient").value;
     const amount = Number(document.getElementById("amount").value || 0);
     if (amount > player.capital) return alert("Not enough capital.");
@@ -645,29 +864,64 @@ function setupRTEs() {
   setupEditor("#congress .editor-toolbar", "#billBody");
 }
 
-function seedPlayers() {
-  const grid = document.getElementById("mapGrid");
-  if (!grid) return;
-  const sample = [
-    { name: "Brooke Tan", state: "CA", party: "Democrat" },
-    { name: "Jamal Ortiz", state: "TX", party: "Republican" },
-    { name: "Lina Cho", state: "WA", party: "Independent" },
-  ];
-  const log = document.getElementById("moneyLog");
-  if (log) log.innerHTML += `<div class="subtle">Click a name anywhere to open their profile.</div>`;
-  sample.forEach((p) => {
-    const tag = document.createElement("div");
-    tag.className = "tag";
-    tag.textContent = p.name;
-    tag.style.cursor = "pointer";
-    tag.title = "View profile";
-    tag.addEventListener("click", () => alert(`${p.name} — ${p.party} (${p.state}) profile preview.`));
-    grid.appendChild(tag);
+function renderBillContainers() {
+  const containers = document.querySelectorAll("[data-bill-list]");
+  if (!containers.length) return;
+  bills.forEach((bill) => evaluateBill(bill));
+  containers.forEach((container) => {
+    const scope = container.dataset.scope || "all";
+    let filtered = bills;
+    if (scope === "house") filtered = bills.filter((b) => b.chamber === "House" || b.stage === "House Vote");
+    if (scope === "senate") filtered = bills.filter((b) => b.chamber === "Senate" || b.stage === "Senate Vote");
+    container.innerHTML = "";
+    if (!filtered.length) {
+      container.innerHTML = '<div class="notice">No bills filed yet.</div>';
+      return;
+    }
+    filtered.forEach((bill, idx) => {
+      const globalIdx = bills.indexOf(bill);
+      const chamberForStage = getBillChamberForStage(bill);
+      const voteOpen = bill.stage.includes("Vote") && (!bill.expiresAt || Date.now() < bill.expiresAt);
+      const actions = [];
+      if (bill.stage === "House Vote") {
+        actions.push(`<button type="button" onclick="castVote(${globalIdx}, 'aye')" ${!isHouseMember() || !voteOpen ? "disabled" : ""}>Aye</button>`);
+        actions.push(`<button type="button" onclick="castVote(${globalIdx}, 'nay')" ${!isHouseMember() || !voteOpen ? "disabled" : ""}>Nay</button>`);
+      }
+      if (bill.stage === "Senate Vote") {
+        actions.push(`<button type="button" onclick="castVote(${globalIdx}, 'aye')" ${!isSenator() || !voteOpen ? "disabled" : ""}>Aye</button>`);
+        actions.push(`<button type="button" onclick="castVote(${globalIdx}, 'nay')" ${!isSenator() || !voteOpen ? "disabled" : ""}>Nay</button>`);
+      }
+      if (bill.stage === "Awaiting President") {
+        actions.push(`<button type="button" onclick="signBill(${globalIdx})" ${!isPresident() ? "disabled" : ""}>Sign</button>`);
+        actions.push(`<button type="button" onclick="vetoBill(${globalIdx})" ${!isPresident() ? "disabled" : ""}>Veto</button>`);
+      }
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <h4>${bill.title}</h4>
+        <p class="subtle">${bill.chamber} origin • ${bill.topic} / ${bill.subtopic} • Outcome: ${bill.outcome}</p>
+        <div class="stat"><span>Status</span><strong>${bill.status}</strong></div>
+        <div class="stat"><span>Stage</span><strong>${bill.stage}</strong></div>
+        <div class="stat"><span>Vote (${chamberForStage})</span><strong>${bill.votes.aye} aye / ${bill.votes.nay} nay</strong></div>
+        <div class="stat"><span>Clock</span><strong>${formatCountdown(bill.expiresAt)}</strong></div>
+        <div class="inline-actions">${actions.join("") || "<span class='subtle'>No actions available</span>"}</div>
+      `;
+      container.appendChild(card);
+    });
   });
+}
+
+function enforceProfileGate() {
+  const page = document.body.dataset.page;
+  if (page === "profile") return;
+  if (!player.email) {
+    ensureProfile("before exploring other pages");
+  }
 }
 
 function init() {
   loadState();
+  enforceProfileGate();
   populateStates();
   renderProfile();
   renderMap();
@@ -676,13 +930,12 @@ function init() {
   setupIncomeButtons();
   setupFederal();
   populateBillTopics();
-  renderBills();
+  renderBillContainers();
   setupParty();
   renderTreasury();
   setupMoneyTransfers();
   renderMoneyLog();
   setupRTEs();
-  seedPlayers();
   hydrateLanding();
 
   const signup = document.getElementById("signupForm");
@@ -699,8 +952,9 @@ function init() {
       }
     });
     renderRace();
+    renderBillContainers();
     saveState();
-  }, 10000);
+  }, 30000);
 
   if (primaryOpen) setTimeout(advanceGeneral, 20000);
 }

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Senate — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="senate">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>United States Senate</h1>
+      <p class="subtitle">Review legislation from the House and move it toward the President.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="house.html">House</a>
+      <a class="nav-link active" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Senate agenda</h2>
+          <p class="subtle">Only Senators can vote or introduce Senate bills. Each vote window lasts 24 hours.</p>
+        </div>
+        <div class="badge">Senate → House → President</div>
+      </div>
+      <div id="senateBillList" class="cards" data-bill-list data-scope="senate"></div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>
