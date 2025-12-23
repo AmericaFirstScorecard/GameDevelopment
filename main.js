@@ -196,7 +196,7 @@ function buildStateEconomy(code, idx) {
   return { population, specializedSector, sectors };
 }
 
-const stateData = baseStates.map((state, idx) => ({
+const baseStateData = baseStates.map((state, idx) => ({
   ...state,
   flag: `logos/${state.code.toLowerCase()}.png`,
   governor: "Vacant",
@@ -205,6 +205,12 @@ const stateData = baseStates.map((state, idx) => ({
   houseMembers: Array.from({ length: Math.min(state.houseSeats, 8) }, (_, i) => `House member ${i + 1}`),
   economy: buildStateEconomy(state.code, idx),
 }));
+
+function cloneStateData() {
+  return JSON.parse(JSON.stringify(baseStateData));
+}
+
+let stateData = cloneStateData();
 
 const topics = {
   Health: ["Abortion", "Drug Pricing", "Medicare"],
@@ -252,10 +258,12 @@ let partyDirectory = partyOptions.reduce((acc, name) => {
   return acc;
 }, {});
 let politicians = [];
+let playerDirectory = {};
 let partyPage = 1;
 let selectedParty = partyOptions[0];
 let sessionLastPayoutAt = 0;
 let stateRaceBoard = {};
+let viewingProfile = null;
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
 
@@ -305,11 +313,65 @@ function isValidPersonName(name) {
 function findPlayerByIdentifier(identifier) {
   if (!identifier) return null;
   const lower = identifier.toLowerCase();
-  return politicians.find((p) => p.name?.toLowerCase() === lower || p.username?.toLowerCase() === lower);
+  return getRealPlayers().find((p) => p.name?.toLowerCase() === lower || p.username?.toLowerCase() === lower) || null;
+}
+
+function getCompanyEconomyKey(company, ownerIdentifier) {
+  const owner = ownerIdentifier || company.owner || company.ownerKey || company.ceo || "player";
+  return `${company.name} (${owner})`;
+}
+
+function snapshotCompany(company, ownerIdentifier) {
+  const normalized = {
+    ...company,
+    expansions: { ...(company.expansions || {}) },
+  };
+  normalized.economyKey = company.economyKey || getCompanyEconomyKey(company, ownerIdentifier);
+  normalized.owner = company.owner || ownerIdentifier;
+  return normalized;
+}
+
+function snapshotPlayerProfile(sourcePlayer = player, sourceCompanies = companies, sourceRaces = races) {
+  if (!sourcePlayer?.name && !sourcePlayer?.username) return null;
+  return {
+    name: sourcePlayer.name,
+    username: sourcePlayer.username,
+    party: sourcePlayer.party,
+    state: sourcePlayer.state,
+    office: sourcePlayer.office,
+    partyRole: sourcePlayer.partyRole,
+    economicClass: sourcePlayer.economicClass,
+    description: sourcePlayer.description,
+    avatar: sourcePlayer.avatar,
+    capital: sourcePlayer.capital,
+    capitalIncome: sourcePlayer.capitalIncome,
+    politicalCapital: sourcePlayer.politicalCapital,
+    politicalIncome: sourcePlayer.politicalIncome,
+    companies: (sourceCompanies || []).map((c) => snapshotCompany(c, sourcePlayer.username || sourcePlayer.name)),
+    races: (sourceRaces || []).map((r) => ({ ...r })),
+  };
+}
+
+function publishPlayerProfile() {
+  const snapshot = snapshotPlayerProfile();
+  if (!snapshot) return;
+  const key = snapshot.username || snapshot.name;
+  playerDirectory[key] = snapshot;
 }
 
 function getRealPlayers() {
-  return politicians.filter((p) => p.name && isValidPersonName(p.name));
+  const directoryPlayers = Object.values(playerDirectory || {});
+  const politicianPlayers = (politicians || [])
+    .filter((p) => p.name && isValidPersonName(p.name))
+    .map((p) => ({ name: p.name, username: p.username, party: p.party, state: p.state, office: p.office, partyRole: p.role }));
+  const combined = [...directoryPlayers, ...politicianPlayers];
+  const seen = new Set();
+  return combined.filter((p) => {
+    const key = (p.username || p.name || "").toLowerCase();
+    if (!key || seen.has(key) || !isValidPersonName(p.name)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function resolveRealPlayer(identifier) {
@@ -373,8 +435,13 @@ function hydrateActiveAccount() {
       ...company,
       expansions: company.expansions || {},
     }));
+    companies.forEach((company) => {
+      company.owner = company.owner || player.username || player.name;
+      company.economyKey = company.economyKey || getCompanyEconomyKey(company, company.owner);
+    });
     moneyTransfers = account.moneyTransfers || [];
     sessionLastPayoutAt = account.lastPayoutAt || Date.now();
+    publishPlayerProfile();
   } else {
     player = buildDefaultPlayer();
     races = [];
@@ -382,6 +449,7 @@ function hydrateActiveAccount() {
     moneyTransfers = [];
     sessionLastPayoutAt = Date.now();
   }
+  rebuildEconomyFromDirectory();
 }
 
 function syncActiveAccount() {
@@ -410,6 +478,8 @@ function syncActiveAccount() {
     account.moneyTransfers = moneyTransfers;
     account.lastPayoutAt = sessionLastPayoutAt || Date.now();
   }
+  publishPlayerProfile();
+  rebuildEconomyFromDirectory();
 }
 
 function saveState() {
@@ -423,6 +493,7 @@ function saveState() {
     partyTreasuries,
     partyDirectory,
     politicians,
+    playerDirectory,
     loggedIn,
     stateRaceBoard,
     lastPayoutAt: sessionLastPayoutAt,
@@ -452,6 +523,37 @@ function normalizeBill(bill) {
   return normalized;
 }
 
+function backfillDirectoryFromAccounts() {
+  accounts.forEach((acct) => {
+    const snapshot = snapshotPlayerProfile(acct.player, acct.companies, acct.races);
+    if (!snapshot) return;
+    const key = snapshot.username || snapshot.name;
+    if (!playerDirectory[key]) {
+      playerDirectory[key] = snapshot;
+    }
+  });
+}
+
+function rebuildEconomyFromDirectory() {
+  stateData = cloneStateData();
+  const profiles = getRealPlayers();
+  profiles.forEach((profile) => {
+    (profile.companies || []).forEach((company) => {
+      const normalized = snapshotCompany(company, profile.username || profile.name);
+      Object.entries(normalized.expansions || {}).forEach(([code, count]) => {
+        for (let i = 0; i < count; i++) {
+          allocateMarketShare(code, normalized.industry, normalized.economyKey, 2 + i * 0.75);
+        }
+      });
+    });
+  });
+  companies.forEach((company) => {
+    company.economyKey = company.economyKey || getCompanyEconomyKey(company, player.username || player.name);
+    const financials = calculateCompanyFinancials(company);
+    company.income = financials.income;
+  });
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(storageKey);
@@ -463,6 +565,7 @@ function loadState() {
     primaryOpen = parsed.primaryOpen ?? true;
     partyTreasuries = parsed.partyTreasuries || {};
     partyDirectory = parsed.partyDirectory || partyDirectory;
+    playerDirectory = parsed.playerDirectory || {};
     stateRaceBoard = parsed.stateRaceBoard || {};
     loggedIn = parsed.loggedIn ?? false;
     activeAccountId = parsed.activeAccountId || null;
@@ -479,9 +582,11 @@ function loadState() {
       activeAccountId = legacyAccount.id;
     }
     if (accounts.length && !activeAccountId) activeAccountId = accounts[0].id;
+    backfillDirectoryFromAccounts();
     hydrateActiveAccount();
     politicians = (parsed.politicians || []).filter((p) => p.username || (player.name && p.name === player.name));
     sessionLastPayoutAt = sessionLastPayoutAt || parsed.lastPayoutAt || Date.now();
+    rebuildEconomyFromDirectory();
   } catch (err) {
     console.warn("Unable to load saved state", err);
   }
@@ -537,7 +642,34 @@ function logout() {
   window.location.href = "login.html";
 }
 
+function hydrateViewingProfileFromQuery() {
+  if (document.body.dataset.page !== "profile") {
+    viewingProfile = null;
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const target = params.get("user");
+  if (!target) {
+    viewingProfile = null;
+    return;
+  }
+  const profile = findPlayerByIdentifier(target);
+  if (!profile) {
+    viewingProfile = null;
+    return;
+  }
+  const key = profile.username || profile.name;
+  const directoryProfile = key ? playerDirectory[key] : null;
+  const viewingSelf = key && key === (player.username || player.name);
+  viewingProfile = viewingSelf ? null : directoryProfile || profile;
+}
+
+function isViewingAnotherProfile() {
+  return Boolean(viewingProfile && (viewingProfile.username || viewingProfile.name) !== (player.username || player.name));
+}
+
 function processPayouts() {
+  rebuildEconomyFromDirectory();
   const now = Date.now();
   if (!sessionLastPayoutAt) sessionLastPayoutAt = now;
   const hourly = 3600000;
@@ -607,38 +739,66 @@ function populateStates() {
 function renderProfile() {
   const nameEl = document.getElementById("profileName");
   if (!nameEl) return;
-  nameEl.textContent = player.name || "No profile yet";
-  if (player.name) {
-    upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
+  const profileData = isViewingAnotherProfile() ? viewingProfile : player;
+  const readOnly = isViewingAnotherProfile();
+  nameEl.textContent = profileData?.name || "No profile yet";
+  if (!readOnly && profileData?.name) {
+    upsertPolitician({ name: profileData.name, party: profileData.party, state: profileData.state, office: profileData.office, role: profileData.partyRole });
   }
-  const stateFlag = stateData.find((s) => s.code === player.state);
+  const stateFlag = profileData?.state ? stateData.find((s) => s.code === profileData.state) : null;
   const flagImg = stateFlag ? `<img src="${stateFlag.flag}" alt="${stateFlag.name} flag" class="inline-flag" />` : "";
   const profileStateEl = document.getElementById("profileState");
   if (profileStateEl) {
-    profileStateEl.innerHTML = player.state ? `${flagImg} ${player.state} — ${player.party}` : "Home state will appear here.";
+    profileStateEl.innerHTML = profileData?.state ? `${flagImg} ${profileData.state} — ${profileData.party}` : "Home state will appear here.";
   }
-  setIfExists("profileUsername", player.username ? `@${player.username}` : "");
-  setIfExists("profileEmail", player.email || "Not set");
-  setIfExists("capitalStat", currency(player.capital));
-  setIfExists("polCapitalStat", currency(player.politicalCapital));
-  setIfExists("capIncomeStat", currency(player.capitalIncome));
-  setIfExists("polIncomeStat", currency(player.politicalIncome));
-  setIfExists("officeLabel", player.office || "Citizen");
-  setIfExists("partyRole", player.partyRole || "Member");
+  setIfExists("profileUsername", profileData?.username ? `@${profileData.username}` : "");
+  setIfExists("profileEmail", profileData?.email || "Not set");
+  setIfExists("capitalStat", currency(profileData?.capital || 0));
+  setIfExists("polCapitalStat", currency(profileData?.politicalCapital || 0));
+  setIfExists("capIncomeStat", currency(profileData?.capitalIncome || 0));
+  setIfExists("polIncomeStat", currency(profileData?.politicalIncome || 0));
+  setIfExists("officeLabel", profileData?.office || "Citizen");
+  setIfExists("partyRole", profileData?.partyRole || "Member");
   const badge = document.getElementById("officeBadge");
-  if (badge) badge.textContent = player.office ? player.office : "Unseated — no office yet";
-  const tags = [formatEconomicClass(player.economicClass), player.religion, player.heritage, player.party]
+  if (badge) badge.textContent = profileData?.office ? profileData.office : "Unseated — no office yet";
+  const tags = [formatEconomicClass(profileData?.economicClass), profileData?.religion, profileData?.heritage, profileData?.party]
     .filter(Boolean)
     .map((t) => `<span class="badge">${t}</span>`)
     .join(" ");
   const tagList = document.getElementById("traitTags");
   if (tagList) tagList.innerHTML = tags;
-  if (player.avatar) {
+  if (profileData?.avatar) {
     const avatar = document.getElementById("avatarPreview");
-    if (avatar) avatar.innerHTML = `<img src="${player.avatar}" alt="avatar" />`;
+    if (avatar) avatar.innerHTML = `<img src="${profileData.avatar}" alt="avatar" />`;
   }
-  hydrateLanding();
-  renderPartyLeadership();
+  const bioEditor = document.getElementById("bioEditor");
+  if (bioEditor) {
+    bioEditor.contentEditable = readOnly ? "false" : "true";
+    bioEditor.innerHTML = profileData?.description || "Tell voters who you are.";
+  }
+  const notice = document.getElementById("profileViewNotice");
+  const noticeName = document.getElementById("viewingProfileName");
+  if (notice && noticeName) {
+    if (readOnly) {
+      noticeName.textContent = profileData?.name || profileData?.username || "player";
+      notice.style.display = "block";
+    } else {
+      notice.style.display = "none";
+    }
+  }
+  ["convertCapital", "boostCapital", "boostPol"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) {
+      btn.style.display = readOnly ? "none" : "";
+      btn.disabled = readOnly;
+    }
+  });
+  const moneyForm = document.getElementById("sendMoneyForm");
+  if (moneyForm) moneyForm.style.display = readOnly ? "none" : "";
+  if (!readOnly) {
+    hydrateLanding();
+    renderPartyLeadership();
+  }
 }
 
 function handleSignup(e) {
@@ -755,22 +915,35 @@ function getElectionTiming(state) {
 }
 
 function defaultRaceCandidates(stateCode, type) {
-  return [
-    { name: `${stateCode} ${type} frontrunner`, party: "Democrats", polling: 48 },
-    { name: `${stateCode} ${type} challenger`, party: "Republicans", polling: 47 },
-  ];
+  return [];
 }
 
 function ensureStateRaceEntries(stateCode) {
   if (!stateRaceBoard[stateCode]) {
     stateRaceBoard[stateCode] = ["Governor", "Senate", "House"].map((type) => ({
       type,
-      stage: "General",
+      stage: "Open",
       endsAt: Date.now() + ELECTION_DURATION_MS,
       candidates: defaultRaceCandidates(stateCode, type),
     }));
   }
   return stateRaceBoard[stateCode];
+}
+
+function getLiveCandidatesForRace(stateCode, type) {
+  return getRealPlayers()
+    .flatMap((profile) =>
+      (profile.races || [])
+        .filter((race) => race.state === stateCode && race.type === type)
+        .map((race) => ({
+          name: profile.name,
+          username: profile.username,
+          party: profile.party || race.party || "Independent",
+          polling: race.polling || 0,
+          stage: race.stage || "Primary",
+        }))
+    )
+    .sort((a, b) => (b.polling || 0) - (a.polling || 0));
 }
 
 function addPlayerToStateRaceBoard(stateCode, race) {
@@ -879,10 +1052,11 @@ function calculateSectorIncome(state, sector, owner) {
 
 function calculateCompanyFinancials(company) {
   let income = 0;
+  const ownerKey = company.economyKey || getCompanyEconomyKey(company, company.owner || player.username || player.name);
   stateData.forEach((state) => {
     const owners = state.economy.sectors[company.industry]?.owners || {};
-    if (owners[company.name]) {
-      income += calculateSectorIncome(state, company.industry, company.name);
+    if (owners[ownerKey]) {
+      income += calculateSectorIncome(state, company.industry, ownerKey);
     }
   });
   const expenses = company.expenses || 0;
@@ -896,13 +1070,14 @@ function expandInState(stateCode) {
   const company = companies.find((c) => c.name === companyName);
   if (!company) return alert("Pick a company to fund this expansion.");
   if (!sector) return alert("Choose a sector to expand into.");
+  company.economyKey = company.economyKey || getCompanyEconomyKey(company, company.owner || player.username || player.name);
   const cost = calculateExpansionCost(stateCode, company);
   if (company.balance < cost) return alert(`The company needs ${currency(cost)} available to expand here.`);
   if (!confirm(`Spend ${currency(cost)} from ${company.name} to expand in ${stateCode}?`)) return;
   company.balance -= cost;
   const current = getCompanyExpansionCount(company, stateCode);
   company.expansions[stateCode] = current + 1;
-  allocateMarketShare(stateCode, sector, company.name, 2 + current * 0.75);
+  allocateMarketShare(stateCode, sector, company.economyKey, 2 + current * 0.75);
   const updatedFinancials = calculateCompanyFinancials(company);
   company.income = updatedFinancials.income;
   notifyAction(`${company.name} expanded in ${stateCode}. Hourly income refreshed.`);
@@ -932,13 +1107,15 @@ function seizeMarketShare(stateCode, sector, companyName) {
   if (!ensureProfile("before seizing market")) return;
   const state = stateData.find((s) => s.code === stateCode);
   if (!state) return;
+  const company = companies.find((c) => c.name === companyName);
+  const ownerKey = company?.economyKey || getCompanyEconomyKey({ name: companyName }, company?.owner || player.username || player.name);
   const owners = state.economy.sectors[sector].owners;
   const remaining = Math.max(0, 100 - Object.entries(owners).reduce((sum, [, val]) => sum + Number(val || 0), 0));
   const americaShare = owners.America ?? 0;
   const available = Math.max(remaining, americaShare);
   const maxGain = available > 90 ? MAX_SEIZURE_GAIN : Math.min(MAX_SEIZURE_GAIN, available);
   const gain = Math.max(MIN_SEIZURE_GAIN, Math.min(maxGain, Math.random() * MAX_SEIZURE_GAIN));
-  allocateMarketShare(stateCode, sector, companyName, gain);
+  allocateMarketShare(stateCode, sector, ownerKey, gain);
   renderStatePage();
   renderCompanies();
   saveState();
@@ -1029,15 +1206,22 @@ function renderStatePage() {
       }
     </div>
   `;
-  const stateRaces = ensureStateRaceEntries(state.code);
+  const stateRaces = ensureStateRaceEntries(state.code).map((race) => {
+    const candidates = getLiveCandidatesForRace(state.code, race.type);
+    const derivedStage = candidates.length ? (candidates.some((c) => c.stage === "General") ? "General" : "Primary") : "Open";
+    return { ...race, candidates, stage: derivedStage };
+  });
   const racePanels = stateRaces
     .map((race) => {
       const candidates =
         race.candidates?.length
           ? race.candidates
-              .map((c) => `<div class="stat"><span>${c.name} (${c.party})</span><strong>${c.polling}%</strong></div>`)
+              .map((c) => {
+                const handle = c.username ? ` (@${c.username})` : "";
+                return `<div class="stat"><span>${c.name}${handle} (${c.party})</span><strong>${c.polling}%</strong></div>`;
+              })
               .join("")
-          : "<div class='subtle'>No candidates yet.</div>";
+          : "<div class='subtle'>No candidates have filed yet.</div>";
       return `
         <div class="card">
           <h4>${race.type} — ${race.stage}</h4>
@@ -1117,12 +1301,17 @@ function renderRace() {
   const notice = document.getElementById("noRaceNotice");
   if (!container) return;
   container.innerHTML = "";
-  if (!races.length) {
-    if (notice) notice.style.display = "block";
+  const readOnly = isViewingAnotherProfile();
+  const raceList = readOnly ? viewingProfile?.races || [] : races;
+  if (!raceList.length) {
+    if (notice) {
+      notice.textContent = readOnly ? "This player is not in any races." : "Not in a race yet. Join from any state page.";
+      notice.style.display = "block";
+    }
     return;
   }
   if (notice) notice.style.display = "none";
-  races.forEach((race, idx) => {
+  raceList.forEach((race, idx) => {
     const canSwearIn = race.polling >= 50 && (race.stage === "General" || race.type === "President");
     const raceClock = formatRaceClock(race.endsAt);
     const card = document.createElement("div");
@@ -1141,6 +1330,12 @@ function renderRace() {
         ${canSwearIn ? `<button type="button" onclick="swearIntoOffice(${idx})">Swear into office</button>` : ""}
       </div>
     `;
+    if (readOnly) {
+      const actions = card.querySelector(".inline-actions");
+      if (actions) {
+        actions.innerHTML = "<span class='subtle'>Viewing only — controls disabled.</span>";
+      }
+    }
     container.appendChild(card);
   });
 }
@@ -1170,8 +1365,11 @@ function signUpRace(state, type) {
   };
   races.push(newRace);
   addPlayerToStateRaceBoard(state, newRace);
+  publishPlayerProfile();
+  rebuildEconomyFromDirectory();
   renderProfile();
   renderRace();
+  renderStatePage();
   saveState();
 }
 
@@ -1180,8 +1378,10 @@ function buyPoll(idx) {
   player.politicalCapital -= 5000;
   races[idx].demographicPulse = "Income + heritage leaning toward you";
   races[idx].polling = Math.min(80, races[idx].polling + 3);
+  publishPlayerProfile();
   renderProfile();
   renderRace();
+  renderStatePage();
   saveState();
 }
 
@@ -1189,8 +1389,10 @@ function attackAd(idx) {
   if (player.politicalCapital < 7500) return alert("Not enough political capital.");
   player.politicalCapital -= 7500;
   races[idx].polling = Math.min(90, races[idx].polling + 4);
+  publishPlayerProfile();
   renderProfile();
   renderRace();
+  renderStatePage();
   saveState();
 }
 
@@ -1198,8 +1400,10 @@ function boostSelf(idx) {
   if (player.politicalCapital < 5000) return alert("Not enough political capital.");
   player.politicalCapital -= 5000;
   races[idx].polling = Math.min(95, races[idx].polling + 2);
+  publishPlayerProfile();
   renderProfile();
   renderRace();
+  renderStatePage();
   saveState();
 }
 
@@ -1207,7 +1411,9 @@ function withdrawRace(idx) {
   const race = races[idx];
   races.splice(idx, 1);
   if (race) removePlayerFromStateRaceBoard(race.state, race.type);
+  publishPlayerProfile();
   renderRace();
+  renderStatePage();
   saveState();
 }
 
@@ -1222,6 +1428,7 @@ function swearIntoOffice(idx) {
   upsertPolitician({ name: player.name, party: player.party, state: player.state, office: player.office, role: player.partyRole });
   renderProfile();
   renderCompanies();
+  renderStatePage();
   saveState();
 }
 
@@ -1399,6 +1606,7 @@ function createCompany(e) {
   if (!ensureProfile("to launch a company")) return;
   if (companies.length >= 5) return alert("CEO cap reached (5).");
   if (player.capital < 1000000) return alert("Need $1,000,000 capital to form a company.");
+  const ownerId = player.username || player.name;
   const shares = Number(document.getElementById("companyShares").value || 100000);
   const income = Math.max(15000, shares / 10 + Math.random() * 20000);
   const expenses = income * 0.35;
@@ -1406,6 +1614,7 @@ function createCompany(e) {
   const company = {
     name: document.getElementById("companyName").value,
     ceo: player.name || "CEO",
+    owner: ownerId,
     industry: document.getElementById("companyIndustry").value,
     salary: Number(document.getElementById("companySalary").value || 0),
     shares,
@@ -1418,9 +1627,10 @@ function createCompany(e) {
     foundedState,
     expansions: { [foundedState]: 1 },
   };
+  company.economyKey = getCompanyEconomyKey(company, ownerId);
   player.capital -= 1000000;
   companies.push(company);
-  allocateMarketShare(foundedState, company.industry, company.name, 1);
+  allocateMarketShare(foundedState, company.industry, company.economyKey, 1);
   renderProfile();
   renderCompanies();
   notifyAction(`${company.name} created in ${foundedState}.`);
@@ -2068,6 +2278,26 @@ function setupRTEs() {
   setupEditor("#senateBillForm .editor-toolbar", "#senateBillBody");
 }
 
+function setupBioSync() {
+  const bio = document.getElementById("bioEditor");
+  if (!bio || isViewingAnotherProfile()) return;
+  let debounce;
+  bio.addEventListener("input", () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      player.description = bio.innerHTML;
+      publishPlayerProfile();
+      saveState();
+    }, 350);
+  });
+}
+
+function openPublicProfile(identifier) {
+  if (!identifier) return;
+  const target = encodeURIComponent(identifier);
+  window.location.href = `profile.html?user=${target}`;
+}
+
 function renderSearchResults() {
   if (document.body.dataset.page !== "search") return;
   const container = document.getElementById("searchResults");
@@ -2076,7 +2306,7 @@ function renderSearchResults() {
   const partyFilter = document.getElementById("searchParty")?.value || "";
   const stateFilter = document.getElementById("searchState")?.value || "";
   const officeFilter = document.getElementById("searchOffice")?.value || "";
-  const filtered = politicians.filter((p) => {
+  const filtered = getRealPlayers().filter((p) => {
     const matchesName = !nameFilter || p.name.toLowerCase().includes(nameFilter);
     const matchesParty = !partyFilter || p.party === partyFilter;
     const matchesState = !stateFilter || p.state === stateFilter;
@@ -2091,14 +2321,21 @@ function renderSearchResults() {
   filtered.forEach((p) => {
     const state = stateData.find((s) => s.code === p.state);
     const flag = state ? `<img src='${state.flag}' alt='${p.state}' class='inline-flag' />` : "";
+    const role = p.partyRole || p.role || "Member";
+    const target = p.username || p.name;
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
-      <h4>${p.name}</h4>
-      <p class="subtle">${flag} ${p.state || "Unknown"} • ${p.party}</p>
+      <h4>${p.name} ${p.username ? `<span class="subtle">@${p.username}</span>` : ""}</h4>
+      <p class="subtle">${flag} ${p.state || "Unknown"} • ${p.party || "Independent"}</p>
       <div class="stat"><span>Position</span><strong>${p.office || "Citizen"}</strong></div>
-      <div class="stat"><span>Role</span><strong>${p.role || "Member"}</strong></div>
+      <div class="stat"><span>Role</span><strong>${role}</strong></div>
     `;
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.textContent = "View profile";
+    viewBtn.addEventListener("click", () => openPublicProfile(target));
+    card.appendChild(viewBtn);
     container.appendChild(card);
   });
 }
@@ -2173,6 +2410,7 @@ function enforceProfileGate() {
 
 function init() {
   loadState();
+  hydrateViewingProfileFromQuery();
   const gatePassed = enforceProfileGate();
   if (gatePassed === false) return;
   populateStates();
@@ -2194,6 +2432,7 @@ function init() {
   setupMoneyTransfers();
   renderMoneyLog();
   setupRTEs();
+  setupBioSync();
   setupSearchFilters();
   hydrateLanding();
   setupBillForm({
