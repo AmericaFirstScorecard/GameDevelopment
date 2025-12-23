@@ -17,6 +17,9 @@
       <a class="nav-link" href="index.html">Home</a>
       <a class="nav-link" href="profile.html">Profile</a>
       <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="house.html">House</a>
+      <a class="nav-link" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
       <a class="nav-link active" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -53,7 +56,7 @@
       <div class="panel-header">
         <div>
           <h2>House & Senate</h2>
-          <p class="subtle">Draft legislation with topic/subtopic outcomes and track its journey.</p>
+          <p class="subtle">Draft legislation with topic/subtopic outcomes and track its journey. Each chamber gets 24 hours to vote.</p>
         </div>
         <div class="badge">Bills flow House → Senate → President</div>
       </div>
@@ -92,7 +95,8 @@
         </div>
         <div class="card">
           <h4>Bill pipeline</h4>
-          <div id="billList" class="cards"></div>
+          <p class="subtle">Visit the dedicated House and Senate tabs to vote if you hold a seat.</p>
+          <div id="billList" class="cards" data-bill-list data-scope="all"></div>
         </div>
       </div>
     </section>
@@ -126,7 +130,7 @@
         </div>
         <div class="card">
           <h4>Treasury</h4>
-          <div class="stat"><span>Political capital</span><strong id="treasuryBalance">₱0</strong></div>
+          <div class="stat"><span>Political capital</span><strong id="treasuryBalance">$0</strong></div>
           <form id="withdrawForm">
             <label for="withdrawAmount">Withdraw to personal account</label>
             <input id="withdrawAmount" type="number" min="0" step="100" />
