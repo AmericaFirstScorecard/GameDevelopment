@@ -30,6 +30,18 @@
   <main>
     <section class="tab-panel active">
       <div class="card">
+        <h3>Profile photo</h3>
+        <p class="subtle">Upload or replace your politician headshot. Changes reflect across party rosters and state pages.</p>
+        <div class="inline-actions" style="align-items:flex-end; gap:1rem;">
+          <div class="avatar" id="settingsAvatarPreview">No photo yet</div>
+          <div style="flex:1;">
+            <label for="avatarUpload">Choose an image</label>
+            <input id="avatarUpload" type="file" accept="image/*" />
+            <button type="button" id="saveAvatar" style="margin-top:0.5rem;">Save photo</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
         <h3>Account session</h3>
         <p class="subtle">Use logout to return to the login & signup page. Your saved progress stays on this device.</p>
         <div class="inline-actions" style="margin-top: 0.5rem;">

@@ -49,6 +49,21 @@
         <p class="subtle">Leaving makes you an Independent instantly.</p>
         <button type="button" onclick="leaveParty()" id="leavePartyButton">Become Independent</button>
       </div>
+      <div class="card">
+        <div class="panel-header" style="margin-bottom:0.5rem;">
+          <div>
+            <h4>Party members</h4>
+            <p class="subtle">Ranked by leadership, elected office, then members.</p>
+          </div>
+          <input id="partySearch" placeholder="Search members" />
+        </div>
+        <div id="partyMembers" class="cards"></div>
+        <div class="inline-actions" style="margin-top:0.5rem;">
+          <button type="button" id="partyPrev" class="ghost">Previous</button>
+          <div class="subtle">Page <span id="partyPageLabel">1</span></div>
+          <button type="button" id="partyNext">Next</button>
+        </div>
+      </div>
     </section>
   </main>
 
