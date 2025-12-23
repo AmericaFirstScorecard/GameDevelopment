@@ -20,6 +20,7 @@
       <a class="nav-link" href="house.html">House</a>
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link active" href="companies.html">Companies</a>
+      <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -39,8 +40,7 @@
           <form id="companyForm">
             <label for="companyName">Company name</label>
             <input id="companyName" required placeholder="Atlas Robotics" />
-            <label for="companyCEO">CEO (title shows on profile)</label>
-            <input id="companyCEO" placeholder="Your name" />
+            <p class="subtle">Title is fixed to CEO for the founder.</p>
             <label for="companyIndustry">Industry</label>
             <select id="companyIndustry">
               <option>Technology</option>
@@ -54,8 +54,7 @@
             <input id="companySalary" type="number" min="0" step="1000" placeholder="100000" />
             <label for="companyShares">Shares to create (max 1,000,000)</label>
             <input id="companyShares" type="number" min="1000" max="1000000" step="1000" value="100000" />
-            <label for="companyEmployees">Employees</label>
-            <input id="companyEmployees" type="number" min="0" step="10" value="250" />
+            <p class="subtle">Employees are derived from your state expansions automatically.</p>
             <label for="companyBio">Company bio</label>
             <textarea id="companyBio" placeholder="Mission, differentiation, and growth thesis"></textarea>
             <label for="companyLogo">Logo</label>

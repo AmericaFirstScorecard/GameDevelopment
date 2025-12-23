@@ -20,6 +20,7 @@
       <a class="nav-link" href="house.html">House</a>
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link active" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -56,41 +57,17 @@
       <div class="panel-header">
         <div>
           <h2>House & Senate</h2>
-          <p class="subtle">Draft legislation with topic/subtopic outcomes and track its journey. Each chamber gets 24 hours to vote.</p>
+          <p class="subtle">Track legislation across chambers. Drafting now lives in the dedicated House and Senate pages.</p>
         </div>
         <div class="badge">Bills flow House → Senate → President</div>
       </div>
       <div class="two-col">
         <div class="card">
-          <h4>Write a bill</h4>
-          <label>Chamber</label>
-          <select id="billChamber">
-            <option>House</option>
-            <option>Senate</option>
-          </select>
-          <label>Topic</label>
-          <select id="billTopic"></select>
-          <label>Subtopic</label>
-          <select id="billSubtopic"></select>
-          <label>Outcome</label>
-          <select id="billOutcome">
-            <option>Expand</option>
-            <option>Restrict</option>
-            <option>Fund</option>
-            <option>Repeal</option>
-          </select>
-          <div class="rich-editor" style="margin-top: 0.5rem;">
-            <div class="editor-toolbar">
-              <button type="button" data-command="bold">Bold</button>
-              <button type="button" data-command="italic">Italic</button>
-              <button type="button" data-command="insertUnorderedList">Bullet</button>
-              <button type="button" data-command="insertOrderedList">Numbered</button>
-            </div>
-            <div id="billBody" class="editor-area" contenteditable="true">Draft the bill text here...</div>
-          </div>
-          <div class="inline-actions" style="margin-top: 0.75rem;">
-            <button type="button" id="submitBill" style="width: auto;">Submit bill</button>
-            <div class="subtle">If passed, it heads to the other chamber, then the President.</div>
+          <h4>Drafting moved</h4>
+          <p class="subtle">Introduce House and Senate bills from their respective pages. This console is now for monitoring pipeline status only.</p>
+          <div class="inline-actions">
+            <a class="button" href="house.html" style="width:auto; text-decoration:none; text-align:center;">Go to House</a>
+            <a class="ghost" href="senate.html" style="width:auto; text-decoration:none; text-align:center;">Go to Senate</a>
           </div>
         </div>
         <div class="card">

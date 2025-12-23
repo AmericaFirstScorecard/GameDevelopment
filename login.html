@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="login">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>Welcome back</h1>
+      <p class="subtitle">Sign in to continue, or jump into signup to create your character.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="house.html">House</a>
+      <a class="nav-link" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="parties.html">Parties</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="signup-card">
+      <div class="panel-header">
+        <div>
+          <h2>Login</h2>
+          <p class="subtle">Enter the email you used at signup to continue. New here? Sign up to build your candidate.</p>
+        </div>
+        <div class="pill">One-time login per browser</div>
+      </div>
+      <form id="loginForm" class="form-grid">
+        <div>
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" name="loginEmail" type="email" required placeholder="you@example.com" />
+        </div>
+        <div style="align-self: flex-end;">
+          <button type="submit">Sign in</button>
+        </div>
+      </form>
+      <div class="inline-actions" style="margin-top: 0.8rem;">
+        <a class="button" href="profile.html">Create a new candidate</a>
+        <a class="ghost" href="index.html">Return home</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

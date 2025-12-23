@@ -20,6 +20,7 @@
       <a class="nav-link active" href="house.html">House</a>
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -33,7 +34,41 @@
         </div>
         <div class="badge">House → Senate → President</div>
       </div>
-      <div id="houseBillList" class="cards" data-bill-list data-scope="house"></div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Introduce a House bill</h4>
+          <form id="houseBillForm">
+            <label for="houseBillTopic">Topic</label>
+            <select id="houseBillTopic"></select>
+            <label for="houseBillSubtopic">Subtopic</label>
+            <select id="houseBillSubtopic"></select>
+            <label for="houseBillOutcome">Outcome</label>
+            <select id="houseBillOutcome">
+              <option>Expand</option>
+              <option>Restrict</option>
+              <option>Fund</option>
+              <option>Repeal</option>
+            </select>
+            <div class="rich-editor" style="margin-top: 0.5rem;">
+              <div class="editor-toolbar">
+                <button type="button" data-command="bold">Bold</button>
+                <button type="button" data-command="italic">Italic</button>
+                <button type="button" data-command="insertUnorderedList">Bullet</button>
+                <button type="button" data-command="insertOrderedList">Numbered</button>
+              </div>
+              <div id="houseBillBody" class="editor-area" contenteditable="true">Draft the bill text here...</div>
+            </div>
+            <div class="inline-actions" style="margin-top: 0.75rem;">
+              <button type="submit" style="width: auto;">Submit House bill</button>
+              <div class="subtle">House members only. Bills auto-forward to the Senate if passed.</div>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <h4>House bills</h4>
+          <div id="houseBillList" class="cards" data-bill-list data-scope="house"></div>
+        </div>
+      </div>
     </section>
   </main>
 

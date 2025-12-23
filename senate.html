@@ -20,6 +20,7 @@
       <a class="nav-link" href="house.html">House</a>
       <a class="nav-link active" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link" href="governance.html">Governance</a>
     </nav>
   </header>
@@ -33,7 +34,41 @@
         </div>
         <div class="badge">Senate → House → President</div>
       </div>
-      <div id="senateBillList" class="cards" data-bill-list data-scope="senate"></div>
+      <div class="two-col">
+        <div class="card">
+          <h4>Introduce a Senate bill</h4>
+          <form id="senateBillForm">
+            <label for="senateBillTopic">Topic</label>
+            <select id="senateBillTopic"></select>
+            <label for="senateBillSubtopic">Subtopic</label>
+            <select id="senateBillSubtopic"></select>
+            <label for="senateBillOutcome">Outcome</label>
+            <select id="senateBillOutcome">
+              <option>Expand</option>
+              <option>Restrict</option>
+              <option>Fund</option>
+              <option>Repeal</option>
+            </select>
+            <div class="rich-editor" style="margin-top: 0.5rem;">
+              <div class="editor-toolbar">
+                <button type="button" data-command="bold">Bold</button>
+                <button type="button" data-command="italic">Italic</button>
+                <button type="button" data-command="insertUnorderedList">Bullet</button>
+                <button type="button" data-command="insertOrderedList">Numbered</button>
+              </div>
+              <div id="senateBillBody" class="editor-area" contenteditable="true">Draft the bill text here...</div>
+            </div>
+            <div class="inline-actions" style="margin-top: 0.75rem;">
+              <button type="submit" style="width: auto;">Submit Senate bill</button>
+              <div class="subtle">Senators only. Bills flow back to the House then the President.</div>
+            </div>
+          </form>
+        </div>
+        <div class="card">
+          <h4>Senate bills</h4>
+          <div id="senateBillList" class="cards" data-bill-list data-scope="senate"></div>
+        </div>
+      </div>
     </section>
   </main>
 
