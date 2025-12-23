@@ -29,12 +29,13 @@
 
   <main>
     <div class="tab-switcher">
-      <button class="tab-button active" data-company-tab="portfolio">Portfolio holdings</button>
-      <button class="tab-button" data-company-tab="creation">Create</button>
+      <button class="tab-button active" data-company-tab="creation">Create a company</button>
+      <button class="tab-button" data-company-tab="portfolio">Portfolio holdings</button>
       <button class="tab-button" data-company-tab="market">Stock market</button>
     </div>
+    <p class="muted-note">Use these tabs to jump between creation, your holdings, and the live stock market board.</p>
 
-    <section class="tab-panel active" data-company-panel="portfolio">
+    <section class="tab-panel" data-company-panel="portfolio">
       <div class="panel-header">
         <div>
           <h2>Corporate dashboard</h2>
@@ -54,7 +55,7 @@
       </div>
     </section>
 
-    <section class="tab-panel" data-company-panel="creation">
+    <section class="tab-panel active" data-company-panel="creation">
       <div class="panel-header">
         <div>
           <h2>Create a company</h2>

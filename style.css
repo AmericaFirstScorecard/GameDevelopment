@@ -657,6 +657,70 @@ button:hover {
   object-fit: cover;
 }
 
+.state-hero {
+  display: flex;
+  gap: 1.2rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: linear-gradient(160deg, rgba(124, 243, 201, 0.08), rgba(88, 211, 255, 0.05));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.state-flag-hero img {
+  width: 180px;
+  height: 110px;
+  object-fit: cover;
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.state-identity {
+  text-align: center;
+}
+
+.governor-line {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.favor-meter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.favor-bar {
+  position: relative;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(124, 243, 201, 0.16);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.favor-bar-fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(124, 243, 201, 0.28), rgba(88, 211, 255, 0.2));
+  width: 50%;
+}
+
+.favor-bar-label {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  padding: 0.45rem 0.65rem;
+  font-weight: 600;
+}
+
 .divider {
   height: 1px;
   background: #1f2b50;
@@ -687,6 +751,19 @@ button:hover {
   min-height: 120px;
   padding: 0.75rem;
   outline: none;
+}
+
+.rich-editor.view-only {
+  border-color: #1f2b50;
+}
+
+.rich-editor.view-only .editor-area {
+  background: transparent;
+  min-height: auto;
+}
+
+.editor-area.readonly {
+  cursor: default;
 }
 
 .label-row {

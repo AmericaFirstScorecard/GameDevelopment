@@ -82,6 +82,59 @@ const sectorBaseRates = {
   Logistics: 90,
 };
 
+const statePartyLean = {
+  CA: { Democrats: 65, Republicans: 35 },
+  NY: { Democrats: 63, Republicans: 37 },
+  MA: { Democrats: 65, Republicans: 35 },
+  MD: { Democrats: 64, Republicans: 36 },
+  NJ: { Democrats: 60, Republicans: 40 },
+  CT: { Democrats: 60, Republicans: 40 },
+  RI: { Democrats: 63, Republicans: 37 },
+  HI: { Democrats: 65, Republicans: 35 },
+  VT: { Democrats: 65, Republicans: 35 },
+  DE: { Democrats: 60, Republicans: 40 },
+  IL: { Democrats: 62, Republicans: 38 },
+  WA: { Democrats: 60, Republicans: 40 },
+  OR: { Democrats: 60, Republicans: 40 },
+  CO: { Democrats: 55, Republicans: 45 },
+  NM: { Democrats: 55, Republicans: 45 },
+  VA: { Democrats: 55, Republicans: 45 },
+  ME: { Democrats: 55, Republicans: 45 },
+  MN: { Democrats: 55, Republicans: 45 },
+  MI: { Democrats: 53, Republicans: 47 },
+  NV: { Democrats: 51, Republicans: 49 },
+  PA: { Democrats: 52, Republicans: 48 },
+  WI: { Democrats: 52, Republicans: 48 },
+  NH: { Democrats: 52, Republicans: 48 },
+  AZ: { Democrats: 51, Republicans: 49 },
+  GA: { Democrats: 51, Republicans: 49 },
+  NC: { Democrats: 47, Republicans: 53 },
+  FL: { Democrats: 45, Republicans: 55 },
+  TX: { Democrats: 44, Republicans: 56 },
+  OH: { Democrats: 44, Republicans: 56 },
+  IA: { Democrats: 44, Republicans: 56 },
+  MO: { Democrats: 42, Republicans: 58 },
+  IN: { Democrats: 42, Republicans: 58 },
+  MT: { Democrats: 40, Republicans: 60 },
+  KS: { Democrats: 40, Republicans: 60 },
+  SC: { Democrats: 42, Republicans: 58 },
+  AK: { Democrats: 40, Republicans: 60 },
+  TN: { Democrats: 38, Republicans: 62 },
+  LA: { Democrats: 35, Republicans: 65 },
+  MS: { Democrats: 35, Republicans: 65 },
+  AL: { Democrats: 35, Republicans: 65 },
+  AR: { Democrats: 35, Republicans: 65 },
+  KY: { Democrats: 35, Republicans: 65 },
+  WV: { Democrats: 30, Republicans: 70 },
+  ND: { Democrats: 30, Republicans: 70 },
+  SD: { Democrats: 30, Republicans: 70 },
+  WY: { Democrats: 25, Republicans: 75 },
+  ID: { Democrats: 30, Republicans: 70 },
+  OK: { Democrats: 30, Republicans: 70 },
+  UT: { Democrats: 35, Republicans: 65 },
+  NE: { Democrats: 35, Republicans: 65 },
+};
+
 const statePopulations = {
   CA: 39200000,
   TX: 29500000,
@@ -166,6 +219,7 @@ function buildDefaultPlayer(overrides = {}) {
     partyRole: "Member",
     description: "",
     avatar: "",
+    chairVotes: {},
     expansions: {},
     stockHoldings: [],
     ...overrides,
@@ -196,6 +250,24 @@ function buildStateEconomy(code, idx) {
   return { population, specializedSector, sectors };
 }
 
+function normalizePartyFavor(favor = {}) {
+  const safeFavor = { Democrats: 50, Republicans: 50, ...favor };
+  const total = Object.values(safeFavor).reduce((sum, val) => sum + Number(val || 0), 0) || 100;
+  Object.keys(safeFavor).forEach((key) => {
+    safeFavor[key] = Math.max(0, Number(((safeFavor[key] / total) * 100).toFixed(2)));
+  });
+  const adjustedTotal = Object.values(safeFavor).reduce((sum, val) => sum + Number(val || 0), 0);
+  if (adjustedTotal !== 100) {
+    const diff = 100 - adjustedTotal;
+    safeFavor.Democrats = Number((safeFavor.Democrats + diff).toFixed(2));
+  }
+  return safeFavor;
+}
+
+function getBasePartyFavor(code) {
+  return normalizePartyFavor(statePartyLean[code] || { Democrats: 50, Republicans: 50 });
+}
+
 function buildSenateClasses(idx) {
   const first = (idx % 3) + 1;
   const second = ((idx + 1) % 3) + 1;
@@ -211,6 +283,7 @@ const baseStateData = baseStates.map((state, idx) => {
     senators: senateClasses.map((cls) => ({ class: cls, name: "Vacant", avatar: "" })),
     senateClasses,
     houseDelegation: [],
+    partyFavor: getBasePartyFavor(state.code),
     economy: buildStateEconomy(state.code, idx),
   };
 });
@@ -228,6 +301,14 @@ function applyStateLeadership() {
     if (leadership.governor) state.governor = leadership.governor;
     if (leadership.senators) state.senators = leadership.senators;
     if (leadership.houseDelegation) state.houseDelegation = leadership.houseDelegation;
+  });
+}
+
+function applyStateFavor() {
+  Object.entries(stateFavorOverrides || {}).forEach(([code, favor]) => {
+    const state = stateData.find((s) => s.code === code);
+    if (!state) return;
+    state.partyFavor = normalizePartyFavor({ ...state.partyFavor, ...favor });
   });
 }
 
@@ -313,7 +394,7 @@ let moneyTransfers = [];
 let primaryOpen = true;
 let partyTreasuries = {};
 let partyDirectory = partyOptions.reduce((acc, name) => {
-  acc[name] = { chair: null, vice: null, treasurer: null };
+  acc[name] = { chair: null, vice: null, treasurer: null, chairVotes: {} };
   return acc;
 }, {});
 let politicians = [];
@@ -323,6 +404,7 @@ let selectedParty = partyOptions[0];
 let sessionLastPayoutAt = 0;
 let stateRaceBoard = {};
 let stateLeadership = {};
+let stateFavorOverrides = {};
 let viewingProfile = null;
 
 const cabinet = cabinetRoles.map((role) => ({ role, holder: "Vacant" }));
@@ -401,6 +483,7 @@ function snapshotPlayerProfile(sourcePlayer = player, sourceCompanies = companie
     office: sourcePlayer.office,
     partyRole: sourcePlayer.partyRole,
     economicClass: sourcePlayer.economicClass,
+    chairVotes: sourcePlayer.chairVotes,
     description: sourcePlayer.description,
     avatar: sourcePlayer.avatar,
     capital: sourcePlayer.capital,
@@ -574,6 +657,7 @@ function saveState() {
     loggedIn,
     stateRaceBoard,
     stateLeadership,
+    stateFavorOverrides,
     lastPayoutAt: sessionLastPayoutAt,
   };
   try {
@@ -615,6 +699,7 @@ function backfillDirectoryFromAccounts() {
 function rebuildEconomyFromDirectory() {
   stateData = cloneStateData();
   applyStateLeadership();
+  applyStateFavor();
   const profiles = getRealPlayers();
   profiles.forEach((profile) => {
     (profile.companies || []).forEach((company) => {
@@ -647,8 +732,10 @@ function loadState() {
     playerDirectory = parsed.playerDirectory || {};
     stateRaceBoard = parsed.stateRaceBoard || {};
     stateLeadership = parsed.stateLeadership || {};
+    stateFavorOverrides = parsed.stateFavorOverrides || stateFavorOverrides;
     loggedIn = parsed.loggedIn ?? false;
     activeAccountId = parsed.activeAccountId || null;
+    normalizePartyDirectoryRecords();
     if (!accounts.length && parsed.player) {
       const legacyAccount = buildEmptyAccount({ player: parsed.player });
       legacyAccount.races = parsed.races || [];
@@ -697,9 +784,22 @@ function ensureProfile(reason = "to continue") {
 
 function getPartyRecord(name = player.party) {
   if (!partyDirectory[name]) {
-    partyDirectory[name] = { chair: null, vice: null, treasurer: null };
+    partyDirectory[name] = { chair: null, vice: null, treasurer: null, chairVotes: {} };
   }
+  partyDirectory[name].chairVotes = partyDirectory[name].chairVotes || {};
   return partyDirectory[name];
+}
+
+function isPartyChair(partyName = player.party, personName = player.name) {
+  if (!partyName || !personName) return false;
+  return getPartyRecord(partyName).chair === personName;
+}
+
+function normalizePartyDirectoryRecords() {
+  partyOptions.forEach((name) => {
+    const record = getPartyRecord(name);
+    record.chairVotes = record.chairVotes || {};
+  });
 }
 
 function getPartyTreasury(name = player.party) {
@@ -850,10 +950,15 @@ function renderProfile() {
   renderAvatarPreview("avatarPreview", profileData?.avatar, "Upload an image");
   renderAvatarPreview("settingsAvatarPreview", profileData?.avatar, "No photo yet");
   const bioEditor = document.getElementById("bioEditor");
+  const bioToolbar = document.querySelector(".rich-editor .editor-toolbar");
+  const bioWrapper = document.querySelector(".rich-editor");
   if (bioEditor) {
     bioEditor.contentEditable = readOnly ? "false" : "true";
     bioEditor.innerHTML = profileData?.description || "Tell voters who you are.";
+    bioEditor.classList.toggle("readonly", readOnly);
   }
+  if (bioToolbar) bioToolbar.style.display = readOnly ? "none" : "";
+  if (bioWrapper) bioWrapper.classList.toggle("view-only", readOnly);
   const notice = document.getElementById("profileViewNotice");
   const noticeName = document.getElementById("viewingProfileName");
   if (notice && noticeName) {
@@ -873,6 +978,8 @@ function renderProfile() {
   });
   const moneyForm = document.getElementById("sendMoneyForm");
   if (moneyForm) moneyForm.style.display = readOnly ? "none" : "";
+  const moneyCard = document.getElementById("sendMoneyCard");
+  if (moneyCard) moneyCard.style.display = readOnly ? "none" : "";
   if (!readOnly) {
     hydrateLanding();
     renderPartyLeadership();
@@ -997,9 +1104,37 @@ function defaultRaceCandidates(stateCode, type) {
   return [];
 }
 
+function getStateFavor(code) {
+  const state = stateData.find((s) => s.code === code);
+  if (!state) return { Democrats: 50, Republicans: 50 };
+  state.partyFavor = normalizePartyFavor(state.partyFavor);
+  return state.partyFavor;
+}
+
+function setStateFavor(code, favor) {
+  const state = stateData.find((s) => s.code === code);
+  if (!state) return;
+  state.partyFavor = normalizePartyFavor({ ...state.partyFavor, ...favor });
+  stateFavorOverrides[code] = state.partyFavor;
+}
+
+function adjustStateFavor(code, party, delta) {
+  const favor = { ...getStateFavor(code) };
+  favor[party] = Math.min(90, (favor[party] || 0) + delta);
+  const others = Object.keys(favor).filter((key) => key !== party);
+  const remaining = Math.max(0, 100 - favor[party]);
+  const otherTotal = others.reduce((sum, key) => sum + Number(favor[key] || 0), 0) || others.length;
+  others.forEach((key) => {
+    const share = Number(favor[key] || 0);
+    favor[key] = Math.max(0, Number(((share / otherTotal) * remaining).toFixed(2)));
+  });
+  setStateFavor(code, favor);
+}
+
 function ensureStateRaceEntries(stateCode) {
   if (!stateRaceBoard[stateCode]) {
     stateRaceBoard[stateCode] = ["Governor", "Senate", "House"].map((type) => ({
+      state: stateCode,
       type,
       stage: "Open",
       registrationLocked: false,
@@ -1035,6 +1170,9 @@ function getLiveCandidatesForRace(stateCode, type) {
 
 function syncRaceBoardWithDirectory(stateCode) {
   const entries = ensureStateRaceEntries(stateCode);
+  entries.forEach((entry) => {
+    entry.state = entry.state || stateCode;
+  });
   const directoryRaces = getRealPlayers().flatMap((profile) =>
     (profile.races || [])
       .filter((race) => race.state === stateCode)
@@ -1056,8 +1194,59 @@ function syncRaceBoardWithDirectory(stateCode) {
       entry.candidates.push(candidate);
     }
     if (entry.stage === "Open") entry.stage = "Primary";
+    normalizeRacePolling(entry, stateData.find((s) => s.code === stateCode));
   });
   return entries;
+}
+
+function normalizeRacePolling(raceEntry, state) {
+  if (!raceEntry || !raceEntry.candidates) return raceEntry;
+  if (!raceEntry.candidates.length) return raceEntry;
+  if (raceEntry.candidates.length === 1) {
+    raceEntry.candidates[0].polling = 100;
+    return raceEntry;
+  }
+  const total = raceEntry.candidates.reduce((sum, candidate) => sum + Number(candidate.polling || 0), 0);
+  if (!total) {
+    const even = Number((100 / raceEntry.candidates.length).toFixed(2));
+    raceEntry.candidates.forEach((candidate) => (candidate.polling = even));
+    return raceEntry;
+  }
+  raceEntry.candidates.forEach((candidate) => {
+    candidate.polling = Number(((candidate.polling / total) * 100).toFixed(2));
+  });
+  return raceEntry;
+}
+
+function syncPlayerRacePollingFromBoard() {
+  races.forEach((race) => {
+    const entry = ensureStateRaceEntries(race.state).find((r) => r.type === race.type);
+    const match = entry?.candidates.find((c) => c.name === player.name || c.username === player.username);
+    if (match) race.polling = match.polling;
+  });
+}
+
+function shiftPollingTowardCandidate(raceEntry, identifier, delta) {
+  if (!raceEntry || !raceEntry.candidates?.length) return;
+  const state = stateData.find((s) => s.code === raceEntry.state);
+  normalizeRacePolling(raceEntry, state);
+  if (raceEntry.candidates.length === 1) return;
+  const candidate = raceEntry.candidates.find((c) => c.username === identifier || c.name === identifier);
+  if (!candidate) return;
+  const others = raceEntry.candidates.filter((c) => c !== candidate);
+  const available = others.reduce((sum, c) => sum + Number(c.polling || 0), 0);
+  if (!available) return;
+  const favor = getStateFavor(state?.code || raceEntry.state);
+  const partyFavor = favor[candidate.party] ?? 50;
+  const adjustedDelta = delta * (1 + (partyFavor - 50) / 100);
+  const gain = Math.min(adjustedDelta, available);
+  candidate.polling = Number((candidate.polling + gain).toFixed(2));
+  others.forEach((c) => {
+    const share = Number(c.polling || 0);
+    const reduction = (share / available) * gain;
+    c.polling = Math.max(0, Number((share - reduction).toFixed(2)));
+  });
+  normalizeRacePolling(raceEntry, state);
 }
 
 function addPlayerToStateRaceBoard(stateCode, race) {
@@ -1068,7 +1257,9 @@ function addPlayerToStateRaceBoard(stateCode, race) {
   if (raceEntry.registrationLocked && raceEntry.stage !== "Open") return;
   const playerName = player.name || player.username || "You";
   const existing = raceEntry.candidates.find((c) => c.name === playerName);
-  const payload = { name: playerName, username: player.username, party: player.party || "Independent", polling: race.polling, stage: race.stage || "Primary" };
+  const seedFavor = getStateFavor(stateCode);
+  const seedPolling = race.polling ?? seedFavor[player.party] ?? 25;
+  const payload = { name: playerName, username: player.username, party: player.party || "Independent", polling: seedPolling, stage: race.stage || "Primary" };
   if (existing) {
     Object.assign(existing, payload);
   } else {
@@ -1076,6 +1267,7 @@ function addPlayerToStateRaceBoard(stateCode, race) {
   }
   raceEntry.stage = race.stage || "Primary";
   raceEntry.endsAt = race.endsAt || raceEntry.endsAt;
+  normalizeRacePolling(raceEntry, stateData.find((s) => s.code === stateCode));
 }
 
 function removePlayerFromStateRaceBoard(stateCode, type) {
@@ -1083,6 +1275,7 @@ function removePlayerFromStateRaceBoard(stateCode, type) {
   const raceEntry = entries.find((r) => r.type === type);
   if (!raceEntry) return;
   raceEntry.candidates = raceEntry.candidates.filter((c) => c.name !== (player.name || player.username));
+  normalizeRacePolling(raceEntry, stateData.find((s) => s.code === stateCode));
 }
 
 function getCandidateProfile(name, username) {
@@ -1183,6 +1376,8 @@ function advanceRaceLifecycle() {
   if (player.state) ensureStateRaceEntries(player.state);
   Object.entries(stateRaceBoard).forEach(([code, racesForState]) => {
     racesForState.forEach((race) => {
+      race.state = race.state || code;
+      normalizeRacePolling(race, stateData.find((s) => s.code === code));
       if (race.registrationLocked === undefined) race.registrationLocked = false;
       if (!race.endsAt) race.endsAt = Date.now() + ELECTION_DURATION_MS;
       if (!race.candidates.length && race.stage !== "Open") {
@@ -1215,6 +1410,7 @@ function advanceRaceLifecycle() {
       }
     });
   });
+  syncPlayerRacePollingFromBoard();
 }
 
 function getStateFromQuery() {
@@ -1355,6 +1551,20 @@ function updateExpansionCostDisplay(stateCode) {
   button.disabled = company.balance < cost;
 }
 
+function investStateFavor(stateCode) {
+  if (!ensureProfile("to invest party influence")) return;
+  if (!isPartyChair()) return alert("Only the party chair can invest in state favor.");
+  const treasury = getPartyTreasury(player.party);
+  const cost = 20000;
+  if (treasury < cost) return alert(`The party treasury needs at least ${currency(cost)}.`);
+  adjustStateFavor(stateCode, player.party, 3);
+  setPartyTreasury(player.party, treasury - cost);
+  renderTreasury();
+  renderStatePage();
+  saveState();
+  notifyAction(`Invested ${currency(cost)} from ${player.party} funds to boost ${stateCode} favor.`);
+}
+
 function seizeMarketShare(stateCode, sector, companyName) {
   if (!ensureProfile("before seizing market")) return;
   const state = stateData.find((s) => s.code === stateCode);
@@ -1460,6 +1670,39 @@ function renderStatePage() {
     state.houseDelegation && state.houseDelegation.length
       ? state.houseDelegation.map((member) => `${renderPersonLink(member.name, member.username)} — ${member.seats} seat${member.seats > 1 ? "s" : ""}`).join(", ")
       : "Vacant";
+  const stateFavor = getStateFavor(state.code);
+  const favorEntries = Object.entries(stateFavor).map(([party, share]) => ({ party, share: Number(share || 0) }));
+  const favorBars =
+    favorEntries.length > 0
+      ? favorEntries
+          .map(
+            ({ party, share }) => `
+        <div class="favor-bar">
+          <div class="favor-bar-fill" style="width:${share}%;"></div>
+          <div class="favor-bar-label"><span>${party}</span><strong>${share.toFixed(1).replace(/\.0$/, "")}%</strong></div>
+        </div>
+      `
+          )
+          .join("")
+      : "<div class='subtle'>No party favor recorded.</div>";
+  const chairCanInvest = isPartyChair();
+  const partyInvestControl = chairCanInvest
+    ? `<button type="button" onclick="investStateFavor('${state.code}')">Invest ${currency(20000)} from party funds</button><p class="subtle">Treasury: ${currency(
+        getPartyTreasury(player.party)
+      )}. Boosts ${player.party} candidates in this state.</p>`
+    : "<div class='subtle'>Party chairs can invest treasury funds to tilt the state's political balance.</div>";
+  const stateHero = `
+    <div class="state-hero">
+      <div class="state-flag-hero"><img src="${state.flag}" alt="${state.name} flag" /></div>
+      <div class="state-identity">
+        <h2>${state.name}</h2>
+        <p class="subtle">Residence required for elections. Your home: ${player.state || "None"}.</p>
+        <div class="governor-line">
+          ${governorChip}
+        </div>
+      </div>
+    </div>
+  `;
   const officials = `
     <div class="card">
       <h4>Leadership</h4>
@@ -1518,15 +1761,16 @@ function renderStatePage() {
       `;
     })
     .join("");
-  container.innerHTML = `
-    <div class="panel-header" style="margin-bottom:1rem;">
-      <div>
-        <h2>${state.name}</h2>
-        <p class="subtle">Residence required for elections. Your home: ${player.state || "None"}.</p>
-      </div>
-      <div class="state-flag-inline"><img src="${state.flag}" alt="${state.name} flag" /></div>
-      ${governorChip}
+  const partyInfluenceCard = `
+    <div class="card">
+      <h4>Party favor balance</h4>
+      <p class="subtle">State lean shapes candidate polling. Shares must total 100%.</p>
+      <div class="favor-meter">${favorBars}</div>
+      ${partyInvestControl}
     </div>
+  `;
+  container.innerHTML = `
+    ${stateHero}
     <div class="two-col">
       ${officials}
       <div class="card">
@@ -1564,6 +1808,7 @@ function renderStatePage() {
         </div>
         <p class="subtle">Expansion costs now use company balance and boost that company's market share.</p>
       </div>
+      ${partyInfluenceCard}
       <div class="card">
         <h4>Active races</h4>
         <p class="subtle">Primaries and general fields for this state.</p>
@@ -1648,19 +1893,38 @@ function signUpRace(state, type) {
     return;
   }
   player.politicalCapital -= 10000;
+  const stateFavor = getStateFavor(state);
   const stage = entry && entry.stage === "General" ? "General" : type === "President" ? (primaryOpen ? "Primary" : "General") : "Primary";
   const newRace = {
     state,
     type,
     stage,
-    polling: 12,
+    polling: Math.max(5, stateFavor[player.party] || 12),
     demographicPulse: "Balanced",
     endsAt: Date.now() + ELECTION_DURATION_MS,
   };
   races.push(newRace);
   addPlayerToStateRaceBoard(state, newRace);
+  syncPlayerRacePollingFromBoard();
   publishPlayerProfile();
   rebuildEconomyFromDirectory();
+  renderProfile();
+  renderRace();
+  renderStatePage();
+  saveState();
+}
+
+function applyRacePollingShift(idx, delta) {
+  const race = races[idx];
+  if (!race) return;
+  const entry = ensureStateRaceEntries(race.state).find((r) => r.type === race.type);
+  if (entry) {
+    const identifier = player.username || player.name;
+    shiftPollingTowardCandidate(entry, identifier, delta);
+    const updated = entry.candidates.find((c) => c.username === player.username || c.name === player.name);
+    if (updated) race.polling = updated.polling;
+  }
+  publishPlayerProfile();
   renderProfile();
   renderRace();
   renderStatePage();
@@ -1671,34 +1935,19 @@ function buyPoll(idx) {
   if (player.politicalCapital < 5000) return alert("Not enough political capital.");
   player.politicalCapital -= 5000;
   races[idx].demographicPulse = "Income + heritage leaning toward you";
-  races[idx].polling = Math.min(80, races[idx].polling + 3);
-  publishPlayerProfile();
-  renderProfile();
-  renderRace();
-  renderStatePage();
-  saveState();
+  applyRacePollingShift(idx, 3);
 }
 
 function attackAd(idx) {
   if (player.politicalCapital < 7500) return alert("Not enough political capital.");
   player.politicalCapital -= 7500;
-  races[idx].polling = Math.min(90, races[idx].polling + 4);
-  publishPlayerProfile();
-  renderProfile();
-  renderRace();
-  renderStatePage();
-  saveState();
+  applyRacePollingShift(idx, 4);
 }
 
 function boostSelf(idx) {
   if (player.politicalCapital < 5000) return alert("Not enough political capital.");
   player.politicalCapital -= 5000;
-  races[idx].polling = Math.min(95, races[idx].polling + 2);
-  publishPlayerProfile();
-  renderProfile();
-  renderRace();
-  renderStatePage();
-  saveState();
+  applyRacePollingShift(idx, 2);
 }
 
 function withdrawRace(idx) {
@@ -2323,19 +2572,10 @@ function setupParty() {
   const chairBtn = document.getElementById("electChair");
   if (chairBtn)
     chairBtn.addEventListener("click", () => {
-      if (!ensureProfile("to run the party")) return;
-      if (player.party !== activeParty) return alert("Join this party before making leadership changes.");
+      if (!ensureProfile("to vote for chair")) return;
+      if (player.party !== activeParty) return alert("Join this party before voting.");
       const nameInput = document.getElementById("chairInput").value || player.name;
-      const candidate = resolveRealPlayer(nameInput);
-      if (!candidate) return alert("Only real player names are eligible.");
-      const leadership = getPartyRecord(activeParty);
-      if (leadership.chair && leadership.chair !== player.name) return alert("Only the current chair can change leadership.");
-      leadership.chair = candidate.name;
-      if (candidate.name === player.name) player.partyRole = "Chair";
-      upsertPolitician({ name: candidate.name, username: candidate.username, party: activeParty, state: candidate.state || player.state, office: candidate.office || player.office, role: "Chair" });
-      renderPartyLeadership();
-      notifyAction(`${candidate.name} is now chair.`);
-      saveState();
+      submitChairVote(activeParty, nameInput);
     });
   const viceBtn = document.getElementById("appointVice");
   if (viceBtn)
@@ -2421,8 +2661,71 @@ function setupParty() {
     });
 }
 
+function submitChairVote(party, identifier) {
+  const candidate = resolveRealPlayer(identifier);
+  if (!candidate) return alert("Only real players can receive chair votes.");
+  const candidateParty = candidate.party || "Independents";
+  if (candidateParty !== party) return alert("You can only vote for members of this party.");
+  player.chairVotes = player.chairVotes || {};
+  const leadership = getPartyRecord(party);
+  const votes = leadership.chairVotes || {};
+  const previous = player.chairVotes[party];
+  if (previous && votes[previous]) {
+    votes[previous] = Math.max(0, votes[previous] - 1);
+    if (votes[previous] === 0) delete votes[previous];
+  }
+  votes[candidate.name] = (votes[candidate.name] || 0) + 1;
+  leadership.chairVotes = votes;
+  player.chairVotes[party] = candidate.name;
+  applyChairFromVotes(party);
+  renderPartyLeadership();
+  renderPartyMembers();
+  renderPartyDetails();
+  saveState();
+  notifyAction(`You voted for ${candidate.name} to be ${party} chair.`);
+}
+
+function applyChairFromVotes(party) {
+  const leadership = getPartyRecord(party);
+  const votes = Object.entries(leadership.chairVotes || {}).filter(([, count]) => count > 0);
+  if (!votes.length) return;
+  votes.sort((a, b) => b[1] - a[1]);
+  const topVotes = votes[0][1];
+  const tied = votes.filter(([, count]) => count === topVotes).map(([name]) => name);
+  const winner = tied.includes(leadership.chair) ? leadership.chair : tied[0];
+  if (winner && leadership.chair !== winner) {
+    leadership.chair = winner;
+    const profile = resolveRealPlayer(winner);
+    if (winner === player.name) player.partyRole = "Chair";
+    upsertPolitician({
+      name: winner,
+      username: profile?.username,
+      party,
+      state: profile?.state || player.state,
+      office: profile?.office || player.office,
+      role: "Chair",
+      avatar: profile?.avatar,
+    });
+  }
+}
+
+function removePlayerChairVote(party) {
+  if (!party) return;
+  player.chairVotes = player.chairVotes || {};
+  const prior = player.chairVotes[party];
+  if (!prior) return;
+  const leadership = getPartyRecord(party);
+  if (leadership.chairVotes?.[prior]) {
+    leadership.chairVotes[prior] = Math.max(0, leadership.chairVotes[prior] - 1);
+    if (leadership.chairVotes[prior] === 0) delete leadership.chairVotes[prior];
+  }
+  delete player.chairVotes[party];
+  applyChairFromVotes(party);
+}
+
 function renderPartyLeadership() {
   const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
+  applyChairFromVotes(activeParty);
   const leadership = getPartyRecord(activeParty);
   const chair = leadership.chair || "Vacant";
   const vice = leadership.vice || "Vacant";
@@ -2446,8 +2749,9 @@ function joinParty(name) {
   if (!ensureProfile("to join a party")) return;
   if (player.party === name) return alert(`You are already a member of the ${name}.`);
   const previousParty = player.party;
-  const previousLeadership = getPartyRecord(previousParty);
-  if ([previousLeadership.chair, previousLeadership.vice, previousLeadership.treasurer].includes(player.name)) {
+  const previousLeadership = previousParty ? getPartyRecord(previousParty) : null;
+  removePlayerChairVote(previousParty);
+  if (previousLeadership && [previousLeadership.chair, previousLeadership.vice, previousLeadership.treasurer].includes(player.name)) {
     previousLeadership.chair = previousLeadership.chair === player.name ? null : previousLeadership.chair;
     previousLeadership.vice = previousLeadership.vice === player.name ? null : previousLeadership.vice;
     previousLeadership.treasurer = previousLeadership.treasurer === player.name ? null : previousLeadership.treasurer;
@@ -2467,6 +2771,7 @@ function leaveParty() {
   if (!ensureProfile("to leave a party")) return;
   if (player.party === "Independents") return alert("You are already independent.");
   const leadership = getPartyRecord();
+  removePlayerChairVote(player.party);
   if ([leadership.chair, leadership.vice, leadership.treasurer].includes(player.name)) {
     leadership.chair = leadership.chair === player.name ? null : leadership.chair;
     leadership.vice = leadership.vice === player.name ? null : leadership.vice;
@@ -2551,6 +2856,7 @@ function renderPartyMembers() {
   if (!container) return;
   const query = document.getElementById("partySearch")?.value?.toLowerCase() || "";
   const activeParty = document.body.dataset.page === "parties" ? selectedParty : player.party;
+  const leadership = getPartyRecord(activeParty);
   const roster = politicians.filter((p) => p.party === activeParty);
   const filtered = roster.filter((p) => !query || p.name.toLowerCase().includes(query));
   const roleRank = { chair: 1, "vice-chair": 2, treasurer: 3 };
@@ -2583,10 +2889,12 @@ function renderPartyMembers() {
     const flag = state ? `<img src='${state.flag}' alt='${member.state}' class='inline-flag' />` : "";
     const card = document.createElement("div");
     card.className = "card";
+    const voteCount = leadership.chairVotes?.[member.name] || 0;
     card.innerHTML = `
       <h4>${renderPersonLink(member.name, member.username, "profile-link")}</h4>
       <p class="subtle">${flag} ${member.state || "Unknown"} • ${member.office || "Citizen"}</p>
       <div class="stat"><span>Role</span><strong>${member.role || member.partyRole || "Member"}</strong></div>
+      <div class="stat"><span>Chair votes</span><strong>${voteCount}</strong></div>
     `;
     container.appendChild(card);
   });
@@ -2607,6 +2915,9 @@ function renderPartyDetails() {
   const treasurer = leadership.treasurer || "Vacant";
   const treasury = getPartyTreasury(selectedParty);
   const isMember = player.party === selectedParty;
+  const chairVotes = leadership.chairVotes || {};
+  const leadingVotes = Object.values(chairVotes).reduce((max, val) => Math.max(max, Number(val || 0)), 0);
+  const myVote = player.chairVotes?.[selectedParty] || "None";
   const joinControl = isMember ? "<div class=\"pill\">Current party</div>" : `<button type="button" onclick="joinParty('${selectedParty}')">Join party</button>`;
   container.innerHTML = `
     <div class="panel-header" style="margin-bottom:0.5rem;">
@@ -2625,10 +2936,13 @@ function renderPartyDetails() {
     </div>
     <div class="card role-panel active" data-role-panel="chair">
       <div class="stat"><span>Chair</span><strong id="chairLabel">${chair}</strong></div>
-      <label for="chairInput">Assign chair (real players only)</label>
+      <div class="stat"><span>Highest votes</span><strong>${leadingVotes}</strong></div>
+      <div class="stat"><span>Your vote</span><strong>${myVote}</strong></div>
+      <label for="chairInput">Vote for chair (party members only)</label>
       <input id="chairInput" list="playerSuggestions" placeholder="Search players by name" />
       <div class="inline-actions" style="margin-top: 0.4rem;">
-        <button type="button" id="electChair">Elect Chair</button>
+        <button type="button" id="electChair">Cast vote</button>
+        <div class="subtle">Highest vote-getter becomes chair automatically.</div>
       </div>
     </div>
     <div class="card role-panel" data-role-panel="vice">
