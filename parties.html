@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Political Parties — American Ambitions</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-page="parties">
+  <header class="site-header">
+    <div class="brand">
+      <p class="pill">Design prototype — policy sandbox</p>
+      <h1>Political parties</h1>
+      <p class="subtitle">View the current parties, switch allegiance, or go Independent.</p>
+    </div>
+    <nav class="top-nav">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="profile.html">Profile</a>
+      <a class="nav-link" href="map.html">States</a>
+      <a class="nav-link" href="house.html">House</a>
+      <a class="nav-link" href="senate.html">Senate</a>
+      <a class="nav-link" href="companies.html">Companies</a>
+      <a class="nav-link active" href="parties.html">Parties</a>
+      <a class="nav-link" href="governance.html">Governance</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="tab-panel active">
+      <div class="panel-header">
+        <div>
+          <h2>Party roster</h2>
+          <p class="subtle" id="partyStatus">You are currently a party member.</p>
+        </div>
+        <div class="badge">Switch anytime</div>
+      </div>
+      <div id="partyList" class="cards"></div>
+    </section>
+  </main>
+
+  <script src="main.js"></script>
+</body>
+</html>

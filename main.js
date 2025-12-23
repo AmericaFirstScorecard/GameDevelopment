@@ -1,10 +1,17 @@
 const storageKey = "civic-strategy-state";
 const VOTE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const MOVE_COST = 100000;
+const EMPLOYEES_PER_EXPANSION = 750;
 
 const economicClasses = {
   poor: { capital: 10000, capitalIncome: 10000 },
   middle: { capital: 100000, capitalIncome: 12500 },
   rich: { capital: 1000000, capitalIncome: 15000 },
+};
+const economicClassLabels = {
+  poor: "Poor",
+  middle: "Middle-Class",
+  rich: "Rich",
 };
 
 const baseStates = [
@@ -66,6 +73,7 @@ const stateData = baseStates.map((state, idx) => ({
   governor: "Vacant",
   senators: ["Vacant seat A", "Vacant seat B"],
   senateClass: (idx % 3) + 1,
+  houseMembers: Array.from({ length: Math.min(state.houseSeats, 8) }, (_, i) => `House member ${i + 1}`),
 }));
 
 const topics = {
@@ -74,6 +82,7 @@ const topics = {
   Security: ["Border", "Cyber", "Defense"],
   Education: ["Higher Ed", "K-12", "Loans"],
 };
+const partyOptions = ["Democrats", "Republicans"];
 
 const cabinetRoles = [
   "State",
@@ -88,6 +97,7 @@ const cabinetRoles = [
   "Homeland Security",
 ];
 
+let loggedIn = false;
 let player = {
   email: "",
   name: "",
@@ -104,6 +114,7 @@ let player = {
   partyRole: "Member",
   description: "",
   avatar: "",
+  expansions: [],
 };
 
 let races = [];
@@ -138,8 +149,12 @@ function formatCountdown(timestamp) {
   return `${hrs}h ${mins}m remaining`;
 }
 
+function formatEconomicClass(value) {
+  return economicClassLabels[value] || value;
+}
+
 function saveState() {
-  const payload = { player, races, companies, bills, moneyTransfers, primaryOpen, treasury, partyLeadership };
+  const payload = { player, races, companies, bills, moneyTransfers, primaryOpen, treasury, partyLeadership, loggedIn };
   try {
     localStorage.setItem(storageKey, JSON.stringify(payload));
   } catch (err) {
@@ -171,6 +186,7 @@ function loadState() {
     if (!raw) return;
     const parsed = JSON.parse(raw);
     player = { ...player, ...(parsed.player || {}) };
+    player.expansions = Array.from(new Set(player.expansions || []));
     races = parsed.races || [];
     companies = parsed.companies || [];
     bills = (parsed.bills || []).map((bill) => normalizeBill(bill));
@@ -178,6 +194,7 @@ function loadState() {
     primaryOpen = parsed.primaryOpen ?? true;
     treasury = parsed.treasury ?? 0;
     partyLeadership = parsed.partyLeadership || { chair: null, vice: null, treasurer: null };
+    loggedIn = parsed.loggedIn ?? false;
   } catch (err) {
     console.warn("Unable to load saved state", err);
   }
@@ -189,7 +206,15 @@ function setIfExists(id, value) {
   return el;
 }
 
+function ensureLoggedIn(reason = "to continue") {
+  if (loggedIn) return true;
+  alert(`Log in ${reason}. Redirecting now.`);
+  window.location.href = "login.html";
+  return false;
+}
+
 function ensureProfile(reason = "to continue") {
+  if (!ensureLoggedIn(reason)) return false;
   if (player.email) return true;
   alert(`Create a profile ${reason}. Redirecting now.`);
   window.location.href = "profile.html";
@@ -245,7 +270,7 @@ function renderProfile() {
   setIfExists("partyRole", player.partyRole || "Member");
   const badge = document.getElementById("officeBadge");
   if (badge) badge.textContent = player.office ? player.office : "Unseated — no office yet";
-  const tags = [player.economicClass, player.religion, player.heritage, player.party]
+  const tags = [formatEconomicClass(player.economicClass), player.religion, player.heritage, player.party]
     .filter(Boolean)
     .map((t) => `<span class="badge">${t}</span>`)
     .join(" ");
@@ -264,11 +289,12 @@ function handleSignup(e) {
   const data = new FormData(e.target);
   const selectedClass = data.get("class");
   const stats = economicClasses[selectedClass];
+  const chosenState = data.get("state");
   player = {
     ...player,
     email: data.get("email"),
     name: data.get("name"),
-    state: data.get("state"),
+    state: chosenState,
     party: data.get("party"),
     heritage: data.get("heritage"),
     religion: data.get("religion"),
@@ -279,7 +305,9 @@ function handleSignup(e) {
     politicalIncome: 10000,
     office: "Citizen",
     partyRole: "Member",
+    expansions: Array.from(new Set([chosenState])),
   };
+  loggedIn = true;
   const file = data.get("image");
   if (file && file.size) {
     const reader = new FileReader();
@@ -293,6 +321,26 @@ function handleSignup(e) {
     renderProfile();
     saveState();
   }
+}
+
+function handleLogin(e) {
+  e.preventDefault();
+  const data = new FormData(e.target);
+  const email = data.get("loginEmail");
+  if (!email) return;
+  if (!player.email) {
+    loggedIn = true;
+    saveState();
+    window.location.href = "profile.html";
+    return;
+  }
+  if (player.email !== email) {
+    alert("No account found with that email. Please sign up first.");
+    return;
+  }
+  loggedIn = true;
+  saveState();
+  window.location.href = "index.html";
 }
 
 function renderMap() {
@@ -316,38 +364,98 @@ function getElectionTiming(state) {
   ];
 }
 
-function showState(state) {
-  if (!ensureProfile("to join races")) return;
-  const details = document.getElementById("stateDetails");
-  if (!details) return;
-  details.style.display = "block";
+function getStateFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get("code");
+  if (!code) return null;
+  return stateData.find((s) => s.code === code);
+}
+
+function getExpansionStates() {
+  const unique = new Set(player.expansions || []);
+  if (player.state) unique.add(player.state);
+  return Array.from(unique);
+}
+
+function calculateEmployees() {
+  const expansions = getExpansionStates();
+  return expansions.length * EMPLOYEES_PER_EXPANSION;
+}
+
+function moveToState(code) {
+  if (!ensureProfile("before moving")) return;
+  if (player.state === code) return alert("You already live here.");
+  if (player.capital < MOVE_COST) return alert(`Moving requires ${currency(MOVE_COST)}.`);
+  player.capital -= MOVE_COST;
+  player.state = code;
+  player.expansions = Array.from(new Set([...(player.expansions || []), code]));
+  renderProfile();
+  renderCompanies();
+  renderStatePage();
+  saveState();
+}
+
+function renderStatePage() {
+  if (document.body.dataset.page !== "state") return;
+  const container = document.getElementById("statePage");
+  const state = getStateFromQuery();
+  if (!container) return;
+  if (!state) {
+    container.innerHTML = "<div class='notice'>State not found.</div>";
+    return;
+  }
+  const livingHere = player.state === state.code;
+  const moveDisabled = player.capital < MOVE_COST;
   const racesHtml = getElectionTiming(state)
-    .map(
-      (r) => `
-        <div class="stat"><span>${r.label} race</span><strong>Every ${r.every} — next in ${r.next}</strong></div>
-      `
-    )
+    .map((r) => `<div class=\"stat\"><span>${r.label} race</span><strong>Every ${r.every} — next in ${r.next}</strong></div>`)
     .join("");
-  details.innerHTML = `
-    <div class="flex" style="align-items: flex-start;">
-      <div style="flex: 1;">
-        <h3>${state.name} <span class="badge">${state.code}</span></h3>
-        <p class="subtle">Governor: ${state.governor} • Senator 1: ${state.senators[0]} • Senator 2: ${state.senators[1]}</p>
-        <p class="subtle">House allocation: ${state.houseSeats} seats</p>
-        <div class="inline-actions">
-          <button type="button" onclick="signUpRace('${state.code}', 'House')">Sign up for election ($10,000)</button>
-          <button type="button" onclick="signUpRace('${state.code}', 'Senate')">Join Senate race ($10,000)</button>
-          <button type="button" onclick="signUpRace('${state.code}', 'Governor')">Join Governor race ($10,000)</button>
-        </div>
-      </div>
-      <div class="card" style="min-width: 220px;">
-        <h4>Active races</h4>
-        ${racesHtml}
-        <div class="divider"></div>
-        <p class="subtle">Race cadence: House 2 days, Senate 5 days (rotating classes), Governor 5 days.</p>
-      </div>
+  const officials = `
+    <div class="card">
+      <h4>Leadership</h4>
+      <div class="stat"><span>Governor</span><strong>${state.governor}</strong></div>
+      <div class="stat"><span>Senators</span><strong>${state.senators.join(" • ")}</strong></div>
+      <div class="stat"><span>House delegation (${state.houseSeats})</span><strong>${state.houseMembers.join(", ")}</strong></div>
     </div>
   `;
+  const actions = `
+    <div class="card">
+      <h4>Actions</h4>
+      <div class="inline-actions" style="margin-bottom:0.5rem;">
+        <button type="button" onclick="signUpRace('${state.code}', 'House')" ${!livingHere ? "disabled" : ""}>Join House race ($10,000)</button>
+        <button type="button" onclick="signUpRace('${state.code}', 'Senate')" ${!livingHere ? "disabled" : ""}>Join Senate race ($10,000)</button>
+        <button type="button" onclick="signUpRace('${state.code}', 'Governor')" ${!livingHere ? "disabled" : ""}>Join Governor race ($10,000)</button>
+      </div>
+      ${livingHere ? "<p class='subtle'>You can only run where you live.</p>" : `<p class='subtle'>Move here to qualify for races.</p>`}
+      <button type="button" onclick="moveToState('${state.code}')" ${livingHere || moveDisabled ? "disabled" : ""}>Move here (${currency(MOVE_COST)})</button>
+      ${moveDisabled && !livingHere ? `<p class='subtle'>You need ${currency(MOVE_COST - player.capital)} more capital to move.</p>` : ""}
+    </div>
+  `;
+  container.innerHTML = `
+    <div class="panel-header" style="margin-bottom:1rem;">
+      <div>
+        <h2>${state.name}</h2>
+        <p class="subtle">Residence required for elections. Your home: ${player.state || "None"}.</p>
+      </div>
+      <div class="badge">${state.code}</div>
+    </div>
+    <div class="two-col">
+      ${officials}
+      <div class="card">
+        <h4>Election cadence</h4>
+        ${racesHtml}
+        <div class="divider"></div>
+        <p class="subtle">Only residents can join races in this state.</p>
+      </div>
+    </div>
+    <section style="margin-top:1rem;">
+      ${actions}
+    </section>
+  `;
+}
+
+function showState(state) {
+  if (!ensureLoggedIn("before viewing state details")) return;
+  window.location.href = `state.html?code=${state.code}`;
 }
 
 function renderRace() {
@@ -383,6 +491,10 @@ function renderRace() {
 
 function signUpRace(state, type) {
   if (!ensureProfile("to file for races")) return;
+  if (type !== "President" && player.state !== state) {
+    alert("You can only run in the state you currently live in. Move first.");
+    return;
+  }
   if (player.politicalCapital < 10000) {
     alert("You need $10,000 political capital to enter.");
     return;
@@ -444,8 +556,10 @@ function swearIntoOffice(idx) {
   const officeMap = { House: "Representative", Senate: "Senator", Governor: "Governor", President: "President" };
   player.office = officeMap[race.type] || "Citizen";
   player.state = race.state;
+  player.expansions = Array.from(new Set([...(player.expansions || []), race.state]));
   player.partyRole = player.partyRole || "Member";
   renderProfile();
+  renderCompanies();
   saveState();
 }
 
@@ -487,6 +601,7 @@ function renderCompanies() {
   if (!list) return;
   list.innerHTML = "";
   companies.forEach((c, idx) => {
+    const employees = calculateEmployees();
     const card = document.createElement("div");
     card.className = "card";
     card.innerHTML = `
@@ -494,7 +609,8 @@ function renderCompanies() {
       <p class="subtle">CEO: ${c.ceo} • ${c.shares.toLocaleString()} shares @ $${c.sharePrice}</p>
       <div class="stat"><span>Income / hr</span><strong>${currency(c.income)}</strong></div>
       <div class="stat"><span>Profit</span><strong>${currency(c.income - c.expenses)}</strong></div>
-      <div class="stat"><span>Employees</span><strong>${c.employees.toLocaleString()}</strong></div>
+      <div class="stat"><span>Employees</span><strong>${employees.toLocaleString()}</strong></div>
+      <div class="stat"><span>State expansions</span><strong>${getExpansionStates().length}</strong></div>
       <div class="inline-actions">
         <button type="button" onclick="issueShares(${idx})">Create more shares</button>
         <button type="button" onclick="sellShares(${idx})">Sell personal shares</button>
@@ -515,13 +631,12 @@ function createCompany(e) {
   const expenses = income * 0.35;
   const company = {
     name: document.getElementById("companyName").value,
-    ceo: document.getElementById("companyCEO").value || player.name,
+    ceo: player.name || "CEO",
     industry: document.getElementById("companyIndustry").value,
     salary: Number(document.getElementById("companySalary").value || 0),
     shares,
     sharePrice: 10,
     dividend: 0,
-    employees: Number(document.getElementById("companyEmployees").value || 0),
     bio: document.getElementById("companyBio").value,
     income,
     expenses,
@@ -664,27 +779,26 @@ function castVote(idx, side) {
   saveState();
 }
 
-function submitBill() {
+function submitBillFromForm({ chamber, topicSelect, subtopicSelect, outcomeSelect, bodySelector }) {
   if (!ensureProfile("to introduce legislation")) return;
-  const chamber = document.getElementById("billChamber").value;
   if (chamber === "House" && !isHouseMember()) return alert("Only House members can introduce House bills.");
   if (chamber === "Senate" && !isSenator()) return alert("Only Senators can introduce Senate bills.");
-  const topic = document.getElementById("billTopic").value;
-  const subtopic = document.getElementById("billSubtopic").value;
+  const topic = topicSelect?.value;
+  const subtopic = subtopicSelect?.value;
   const title = `${topic}: ${subtopic}`;
+  const body = bodySelector ? document.querySelector(bodySelector)?.innerHTML : "";
   const bill = normalizeBill({
     title,
     chamber,
     topic,
     subtopic,
-    outcome: document.getElementById("billOutcome").value,
+    outcome: outcomeSelect?.value,
     status: `Filed in the ${chamber}`,
     stage: `${chamber} Vote`,
     votes: { aye: 0, nay: 0 },
     expiresAt: Date.now() + VOTE_WINDOW_MS,
-    history: [
-      `${chamber} filed by ${player.name || "Member"}`,
-    ],
+    body,
+    history: [`${chamber} filed by ${player.name || "Member"}`],
   });
   bills.unshift(bill);
   renderBillContainers();
@@ -715,10 +829,9 @@ function vetoBill(idx) {
   renderBillContainers();
 }
 
-function populateBillTopics() {
-  const topicSelect = document.getElementById("billTopic");
-  const subtopicSelect = document.getElementById("billSubtopic");
+function populateBillTopics(topicSelect, subtopicSelect) {
   if (!topicSelect || !subtopicSelect) return;
+  topicSelect.innerHTML = "";
   Object.keys(topics).forEach((topic) => {
     const opt = document.createElement("option");
     opt.value = topic;
@@ -732,12 +845,26 @@ function populateBillTopics() {
 }
 
 function renderSubtopics(topic, select) {
+  if (!select) return;
   select.innerHTML = "";
   (topics[topic] || []).forEach((sub) => {
     const opt = document.createElement("option");
     opt.value = sub;
     opt.textContent = sub;
     select.appendChild(opt);
+  });
+}
+
+function setupBillForm({ formId, topicId, subtopicId, outcomeId, bodySelector, chamber }) {
+  const form = document.getElementById(formId);
+  if (!form) return;
+  const topicSelect = document.getElementById(topicId);
+  const subtopicSelect = document.getElementById(subtopicId);
+  const outcomeSelect = document.getElementById(outcomeId);
+  populateBillTopics(topicSelect, subtopicSelect);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitBillFromForm({ chamber, topicSelect, subtopicSelect, outcomeSelect, bodySelector });
   });
 }
 
@@ -826,6 +953,64 @@ function renderPartyLeadership() {
   renderTreasury();
 }
 
+function joinParty(name) {
+  if (!ensureProfile("to join a party")) return;
+  if (player.party === name) return alert(`You are already a member of the ${name}.`);
+  if ([partyLeadership.chair, partyLeadership.vice, partyLeadership.treasurer].includes(player.name)) {
+    partyLeadership = { chair: null, vice: null, treasurer: null };
+  }
+  player.party = name;
+  player.partyRole = "Member";
+  renderProfile();
+  renderPartyLeadership();
+  renderPartiesPage();
+  saveState();
+}
+
+function leaveParty() {
+  if (!ensureProfile("to leave a party")) return;
+  if (player.party === "Independents") return alert("You are already independent.");
+  if ([partyLeadership.chair, partyLeadership.vice, partyLeadership.treasurer].includes(player.name)) {
+    partyLeadership = { chair: null, vice: null, treasurer: null };
+  }
+  player.party = "Independents";
+  player.partyRole = "Member";
+  renderProfile();
+  renderPartyLeadership();
+  renderPartiesPage();
+  saveState();
+}
+
+function renderPartiesPage() {
+  if (document.body.dataset.page !== "parties") return;
+  const list = document.getElementById("partyList");
+  const status = document.getElementById("partyStatus");
+  if (status) status.textContent = player.party ? `You are currently a ${player.party} member.` : "No party chosen.";
+  if (!list) return;
+  list.innerHTML = "";
+  partyOptions.forEach((party) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const isMember = player.party === party;
+    card.innerHTML = `
+      <h4>${party}</h4>
+      <p class="subtle">Switch parties at any time. Leaving sends you to Independents.</p>
+      <div class="inline-actions">
+        <button type="button" onclick="joinParty('${party}')" ${isMember ? "disabled" : ""}>Join ${party}</button>
+      </div>
+    `;
+    list.appendChild(card);
+  });
+  const leaveCard = document.createElement("div");
+  leaveCard.className = "card";
+  leaveCard.innerHTML = `
+    <h4>Leave your party</h4>
+    <p class="subtle">Leaving makes you an Independent instantly.</p>
+    <button type="button" onclick="leaveParty()" ${player.party === "Independents" ? "disabled" : ""}>Become Independent</button>
+  `;
+  list.appendChild(leaveCard);
+}
+
 function renderTreasury() {
   setIfExists("treasuryBalance", currency(treasury));
 }
@@ -861,7 +1046,8 @@ function renderMoneyLog() {
 
 function setupRTEs() {
   setupEditor(".rich-editor .editor-toolbar", "#bioEditor");
-  setupEditor("#congress .editor-toolbar", "#billBody");
+  setupEditor("#houseBillForm .editor-toolbar", "#houseBillBody");
+  setupEditor("#senateBillForm .editor-toolbar", "#senateBillBody");
 }
 
 function renderBillContainers() {
@@ -913,23 +1099,31 @@ function renderBillContainers() {
 
 function enforceProfileGate() {
   const page = document.body.dataset.page;
-  if (page === "profile") return;
+  if (page !== "login" && !loggedIn) {
+    window.location.href = "login.html";
+    return false;
+  }
+  if (page === "profile" || page === "login") return true;
   if (!player.email) {
     ensureProfile("before exploring other pages");
+    return false;
   }
+  return true;
 }
 
 function init() {
   loadState();
-  enforceProfileGate();
+  const gatePassed = enforceProfileGate();
+  if (gatePassed === false) return;
   populateStates();
   renderProfile();
   renderMap();
+  renderPartiesPage();
+  renderStatePage();
   renderRace();
   renderCompanies();
   setupIncomeButtons();
   setupFederal();
-  populateBillTopics();
   renderBillContainers();
   setupParty();
   renderTreasury();
@@ -937,13 +1131,29 @@ function init() {
   renderMoneyLog();
   setupRTEs();
   hydrateLanding();
+  setupBillForm({
+    formId: "houseBillForm",
+    topicId: "houseBillTopic",
+    subtopicId: "houseBillSubtopic",
+    outcomeId: "houseBillOutcome",
+    bodySelector: "#houseBillBody",
+    chamber: "House",
+  });
+  setupBillForm({
+    formId: "senateBillForm",
+    topicId: "senateBillTopic",
+    subtopicId: "senateBillSubtopic",
+    outcomeId: "senateBillOutcome",
+    bodySelector: "#senateBillBody",
+    chamber: "Senate",
+  });
 
   const signup = document.getElementById("signupForm");
   if (signup) signup.addEventListener("submit", handleSignup);
+  const loginForm = document.getElementById("loginForm");
+  if (loginForm) loginForm.addEventListener("submit", handleLogin);
   const company = document.getElementById("companyForm");
   if (company) company.addEventListener("submit", createCompany);
-  const billBtn = document.getElementById("submitBill");
-  if (billBtn) billBtn.addEventListener("click", submitBill);
 
   setInterval(() => {
     races.forEach((race) => {
