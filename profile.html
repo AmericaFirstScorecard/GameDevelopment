@@ -23,6 +23,7 @@
       <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link" href="search.html">Search</a>
       <a class="nav-link" href="governance.html">Governance</a>
+      <a class="nav-link" href="settings.html">Settings</a>
     </nav>
   </header>
 
@@ -30,73 +31,20 @@
     <section class="signup-card">
       <div class="panel-header">
         <div>
-          <h2>Create your candidate</h2>
-          <p class="subtle">Sign up with your email, define your avatar, and lock in traits that influence race results.</p>
+          <h2>Account overview</h2>
+          <p class="subtle">You are signed in. Update details or log out from settings.</p>
         </div>
-        <div class="pill pill-warning">Progress saves locally</div>
+        <a class="button ghost" href="settings.html">Settings</a>
       </div>
-      <form id="signupForm">
-        <div class="form-grid">
-          <div>
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" required placeholder="you@example.com" />
-          </div>
-          <div>
-            <label for="name">Character name</label>
-            <input id="name" name="name" required placeholder="Avery Carson" />
-          </div>
-          <div>
-            <label for="state">Home state</label>
-            <select id="state" name="state" required></select>
-          </div>
-          <div>
-            <label for="party">Party</label>
-            <select id="party" name="party">
-              <option>Democrats</option>
-              <option>Republicans</option>
-              <option>Independents</option>
-            </select>
-          </div>
-          <div>
-            <label for="class">Economic class</label>
-            <select id="class" name="class">
-              <option value="poor">Poor ($10,000 start)</option>
-              <option value="middle">Middle-Class ($100,000 start)</option>
-              <option value="rich">Rich ($1,000,000 start)</option>
-            </select>
-          </div>
-          <div>
-            <label for="religion">Religion</label>
-            <select id="religion" name="religion">
-              <option>Secular</option>
-              <option>Christian</option>
-              <option>Jewish</option>
-              <option>Muslim</option>
-              <option>Hindu</option>
-              <option>Buddhist</option>
-            </select>
-          </div>
-          <div>
-            <label for="heritage">Heritage</label>
-            <select id="heritage" name="heritage">
-              <option>Latin American</option>
-              <option>African American</option>
-              <option>European</option>
-              <option>Asian</option>
-              <option>Indigenous</option>
-              <option>Middle Eastern</option>
-            </select>
-          </div>
-          <div>
-            <label for="image">Character image</label>
-            <input id="image" name="image" type="file" accept="image/*" />
-          </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="stat"><span>Username</span><strong id="profileUsername">Not set</strong></div>
+          <div class="stat"><span>Email</span><strong id="profileEmail">Not set</strong></div>
         </div>
-        <div class="form-footer">
-          <button type="submit">Save profile</button>
-          <div class="subtle">Economic class and traits influence primaries & general elections.</div>
+        <div class="card">
+          <p class="subtle">Profile creation now happens on the login & signup page. Manage your session from settings.</p>
         </div>
-      </form>
+      </div>
     </section>
 
     <section class="tab-panel active">
@@ -185,6 +133,7 @@
     </section>
   </main>
 
+  <datalist id="playerSuggestions"></datalist>
   <script src="main.js"></script>
 </body>
 </html>

@@ -3,33 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>State Detail — American Ambitions</title>
+  <title>Settings — American Ambitions</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body data-page="state">
+<body data-page="settings">
   <header class="site-header">
     <div class="brand">
       <p class="pill">Design prototype — policy sandbox</p>
-      <h1>State profile</h1>
-      <p class="subtitle">See office holders, election cadence, and decide whether to move before running.</p>
+      <h1>Settings</h1>
+      <p class="subtitle">Manage your session, review your account, and log out.</p>
     </div>
     <nav class="top-nav">
       <a class="nav-link" href="index.html">Home</a>
       <a class="nav-link" href="profile.html">Profile</a>
-      <a class="nav-link active" href="map.html">States</a>
+      <a class="nav-link" href="map.html">States</a>
       <a class="nav-link" href="house.html">House</a>
       <a class="nav-link" href="senate.html">Senate</a>
       <a class="nav-link" href="companies.html">Companies</a>
       <a class="nav-link" href="parties.html">Parties</a>
       <a class="nav-link" href="search.html">Search</a>
       <a class="nav-link" href="governance.html">Governance</a>
-      <a class="nav-link" href="settings.html">Settings</a>
+      <a class="nav-link active" href="settings.html">Settings</a>
     </nav>
   </header>
 
   <main>
     <section class="tab-panel active">
-      <div id="statePage"></div>
+      <div class="card">
+        <h3>Account session</h3>
+        <p class="subtle">Use logout to return to the login & signup page. Your saved progress stays on this device.</p>
+        <div class="inline-actions" style="margin-top: 0.5rem;">
+          <button type="button" onclick="logout()">Logout</button>
+          <a class="ghost" href="login.html">Go to login</a>
+        </div>
+      </div>
     </section>
   </main>
 
